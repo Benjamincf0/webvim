@@ -1,0 +1,9 @@
+{
+  "global": {
+    "mod+k": "focusSearch"
+  },
+  "youtube.com": {
+    "j": "nextVideo",
+    "k": "prevVideo"
+  }
+}

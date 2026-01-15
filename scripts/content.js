@@ -14,21 +14,33 @@ class Results {
 
     constructor() {
         this.#results = document.getElementById('search').querySelectorAll('[data-rpos]');
+        this.#results.forEach((el) => {el.querySelector("div").style.padding = "10px"})
         console.log(this.#results);
         this.#index = 0;
         this.#prev_idx = 0;
         this.#updateFocus();
     }
+    f
 
     #updateFocus() {
         console.log(this.#index + ", prev: "+ this.#prev_idx);
         let prev = this.#results[this.#prev_idx];
+        let prevChild = prev.querySelector("div")
         let current = this.#results[this.#index];
-        prev.style.outline = "none";
-        current.style.outline = "5px solid blue";
-        current.style.borderRadius = "10px"
+        let child = current.querySelector("div")
+        prevChild.style.border = "none";
+        prevChild.style.backgroundColor = "transparent"
+        prevChild.style.borderRadius = "none"
+
+        child.style.border = "1px solid #6b2d5b";
+        child.style.backgroundColor = "#e2d1e0"
+        child.style.borderRadius = "10px"
         this.#prev_idx = this.#index;
         current.scrollIntoViewIfNeeded(true);
+    }
+
+    #toggleEffects() {
+        
     }
 
     moveDown(i) {
@@ -58,10 +70,10 @@ const RESULTS = new Results();
 document.addEventListener("keydown", (e) => {
     // e.preventDefault();
     doAction(e.key);
+    console.log(e.metaKey)
 })
 
 const doAction = (key) => {
-    // console.log("doing action for "+key)
     if (key == "j") {
         console.log("down -");
         RESULTS.moveDown(1);
