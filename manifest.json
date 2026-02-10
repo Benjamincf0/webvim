@@ -1,19 +1,12 @@
 {
-  "name": "WEBVIM",
+  "name": "NEOWEBVIM",
   "description": "Base Level Extension",
   "version": "1.0",
   "manifest_version": 3,
-  "action": {
-    "default_popup": "hello.html",
-    "default_icon": "hello_extensions.png"
-  },
   "content_scripts": [
     {
-      "js": ["scripts/content.js"],
-      "matches": [
-        "https://google.com/*",
-        "https://www.google.com/*"
-      ]
+      "js": ["content.js"],
+      "matches": ["<all_urls>"]
     }
   ]
 }
