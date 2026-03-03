@@ -1,12 +1,13 @@
 {
-  "name": "NEOWEBVIM",
-  "description": "Base Level Extension",
-  "version": "1.0",
   "manifest_version": 3,
+  "name": "Universal Vim Shortcuts",
+  "version": "1.0",
+  "description": "Custom keyboard shortcuts using a Trie and Strategy pattern.",
   "content_scripts": [
     {
+      "matches": ["<all_urls>"],
       "js": ["content.js"],
-      "matches": ["<all_urls>"]
+      "run_at": "document_start"
     }
   ]
 }
