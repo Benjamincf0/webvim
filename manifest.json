@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Universal Vim Shortcuts",
+  "name": "BetterWeb",
   "version": "1.0",
   "description": "Custom keyboard shortcuts using a Trie and Strategy pattern.",
   "content_scripts": [

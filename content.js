@@ -1,8 +1,13 @@
 const waitFor=(s,c,o=new MutationObserver(()=>{const e=document.querySelector(s);if(e){o.disconnect();c(e)}}))=>(o.observe(document.body,{childList:!0,subtree:!0}),o);
-const SHORTCUT_MODE = 1
-const EDIT_MODE = 2
-const EDIT_MODE_VIM = 3
 
+const log = {
+  info: (...args) => console.log('[BetterWeb]', ...args),
+  warn: (...args) => console.warn('[BetterWeb]', ...args),
+  error: (...args) => console.error('[BetterWeb]', ...args),
+};
+
+// Usage
+log.info('This is from my extension');
 
 /** ===========================================================================
  * MODULE 1: CONFIGURATION
@@ -11,10 +16,9 @@ const EDIT_MODE_VIM = 3
 const USER_CONFIG = {
   "global": {
     "NAV_MODE": {
+      "mod+shift+e f f": "set_NORMAL_MODE",
       "shift+j": "scroll_down",
       "shift+k": "scroll_up",
-      "escape": "shortcut_mode",
-      "ctrl+v i m": "edit_mode_vim",
       "ctrl+g h": "go_home",
       "ctrl+n": "menu_down",
       "ctrl+p": "menu_up",
@@ -25,14 +29,14 @@ const USER_CONFIG = {
     "NORMAL_MODE": {
       "escape": "set_NAV_MODE",
       "i": "set_INSERT_MODE",
+      "shift+v": "set_VISUAL_LINE_MODE",
+      "v": "set_VISUAL_CHAR_MODE",
       "j": "move_cursor_down",
       "k": "move_cursor_up",
       "l": "move_cursor_right_by_one",
       "h": "move_cursor_left_by_one",
       "<number>j": "moveCursorDownByN",
       "<number>k": "moveCursorUpByN",
-      "V": "set_VISUAL_LINE_MODE",
-      "v": "set_VISUAL_CHAR_MODE",
       "x": "delete_char",
       "d d": "delete_line",
     },
@@ -48,13 +52,13 @@ const USER_CONFIG = {
     // }
   },
   "youtube.com": {
-    "mod+k": "focus_search",
+    // "mod+k": "focus_search",
      // Example of a chord/sequence
   },
   "google.com": {
-    "mod+k": "focus_search",
-    "mod+enter": "open",
-    "mod+shift+enter": "open_in_new_tab",
+    // "mod+k": "focus_search",
+    "mod+enter": "open_link",
+    "mod+shift+enter": "open_link_in_new_tab",
   }
 };
 
@@ -91,6 +95,7 @@ function generateEffectiveKeymap(config, hostname, currentMode) {
   if (siteKey) {
     effectiveMap = { ...effectiveMap, ...config[siteKey][currentMode] };
   }
+  log.info(effectiveMap);
   return effectiveMap;
 }
 
@@ -149,85 +154,107 @@ function isUserTyping(el) {
  * ============================================================================ */
 class BaseStrategy {
   constructor() {
-    this._MODE;
+    // this._MODE;
 
-    document.addEventListener('focusin', (event) => {
-        console.log('Focus moved to:', event.target);
-        if (isUserTyping(document.activeElement)) {
-          console.log('Current active element:', document.activeElement);
-          this.setMode(EDIT_MODE);
-        }
-    });
+    // TODO: Move this to ExtensionCore to make strategies stateless. (call setNormalMode when editable element is focused)
+    // document.addEventListener('focusin', (event) => {
+    //     log.info('Focus moved to:', event.target);
+    //     if (isUserTyping(document.activeElement)) {
+    //       log.info('Current active element:', document.activeElement);
+    //       this.setMode(EDIT_MODE);
+    //     }
+    // });
 
-    const inject = () => {
-      this.box = document.createElement('div');
-      this.box.innerHTML = '<p style="margin: 0">N</p>';
-      Object.assign(this.box.style, {
-        position: 'fixed',
-        top: '0px',
-        right: '0px',
-        zIndex: '2147483647',
-        background: '#000000',
-        color: '#ffffff',
-        padding: '2px 2px',
-        borderRadius: '0px',
-        font: '15px sans-serif'
-      });
-      document.body.appendChild(this.box);
-    };
+    // TODO: Create a UIManager class connected to ExtensionCore that handles UI
+    //    - add a shortcut to show a small menu with a form
+    //    - small form to edit config & save to browser storage
+    //    - at the start, load file from storage to generate config json.
+    // const inject = () => {
+    //   this.box = document.createElement('div');
+    //   this.box.innerHTML = '<p style="margin: 0">N</p>';
+    //   Object.assign(this.box.style, {
+    //     position: 'fixed',
+    //     top: '0px',
+    //     right: '0px',
+    //     zIndex: '2147483647',
+    //     background: '#000000',
+    //     color: '#ffffff',
+    //     padding: '2px 2px',
+    //     borderRadius: '0px',
+    //     font: '15px sans-serif'
+    //   });
+    //   document.body.appendChild(this.box);
+    // };
 
-    inject();
+    // inject();
 
     this.menuIndex = 0;
     this.menuItems = [];
   }
 
-  menuDown() {
-    if (this._MODE == EDIT_MODE) return false;
-    this.menuItems[++this.menuIndex].click();
-    return true;
+  setNormalMode() {
+    log.info("setNormalMode");
+  }
+
+  // NAV_MODE
+  goHome() {
+    window.location.href = "/";
+    log.info("Go home bitch");
   }
 
   menuUp() {
-    if (this._MODE == SHORTCUT_MODE) return false;
-    console.log(this.menuItems[this.menuIndex-1]);
     this.menuItems[--this.menuIndex].click();
-    return true;
+  }
+
+  menuDown() {
+    this.menuItems[++this.menuIndex].click();
   }
 
   goUp() {
-    if (this._MODE == EDIT_MODE) return false;
-    console.log("Base Up")
-    return true;
+    log.info("goUp");
   }
 
   goDown() {
-    if (this._MODE == EDIT_MODE) return false;
-    console.log("Base Down")
-    return true;
+    log.info("goDown");
   }
 
-  setMode(mode) {
-    switch (mode) {
-      case SHORTCUT_MODE:
-        // We wrap the blur in a timeout so it defers and runs after default and propagation.
-        setTimeout(() => {document.activeElement.blur()}, 0);
-        this._MODE = SHORTCUT_MODE
-        return false;
-      case EDIT_MODE:
-        this._MODE = EDIT_MODE;
-        break;
-      default:
-        break;
-    }
+  focusSearch() {
+    log.info("focusSearch");
   }
 
-  focusSearch() { console.log("Search not configured for this site"); }
+  // NORMAL_MODE
+  setNavMode() {
+    log.info("setNavMode");
+  }
 
-  goHome() {
-    window.location.href = "/";
-    console.log("Go home bitch")
-   }
+  setInsertMode() {
+    log.info("setInsertMode");
+  }
+
+  setVisualLineMode() {
+    log.info("setVisualLineMode");
+  }
+
+  setVisualCharMode() {
+    log.info("setVisualCharMode");
+  }
+
+  
+
+  // setMode(mode) {
+  //   switch (mode) {
+  //     case SHORTCUT_MODE:
+  //       // We wrap the blur in a timeout so it defers and runs after default and propagation.
+  //       setTimeout(() => {document.activeElement.blur()}, 0);
+  //       this._MODE = SHORTCUT_MODE
+  //       return false;
+  //     case EDIT_MODE:
+  //       this._MODE = EDIT_MODE;
+  //       break;
+  //     default:
+  //       break;
+  //   }
+  // }
 }
 
 class YouTubeStrategy extends BaseStrategy {
@@ -235,7 +262,7 @@ class YouTubeStrategy extends BaseStrategy {
   focusSearch() {
     const searchBox = document.querySelector('form[action="/results"] input[name="search_query"]');
     if (searchBox) searchBox.focus();
-    console.log("SUCCESS")
+    log.info("SUCCESS")
   }
 }
 
@@ -254,7 +281,7 @@ class GoogleStrategy extends BaseStrategy {
       this.menuItems = document.querySelectorAll("div[role='listitem'] a[href^='/search?']");
       const currentMenuItem = document.querySelector("div[role='listitem'] a[aria-disabled='true']");
       const num = [...this.menuItems].indexOf(currentMenuItem);
-      console.log("THE NUM IS " + num + this.menuItems + currentMenuItem);
+      log.info("THE NUM IS " + num + this.menuItems + currentMenuItem);
       this.menuIndex = num;
       // this.menuItems[this.menuIndex].click();
     });
@@ -271,14 +298,14 @@ class GoogleStrategy extends BaseStrategy {
   goUp() {
     if (this._MODE == EDIT_MODE) return false;
     this.focusResult(Math.max(this.searchIndex - 1, 0))
-    console.log("going up")
+    log.info("going up")
     return true;
   }
 
   goDown() {
     if (this._MODE == EDIT_MODE) return false;
     this.focusResult(Math.min(this.searchIndex + 1, this.results.length - 1))
-    console.log("going down")
+    log.info("going down")
     return true;
   }
 
@@ -317,7 +344,7 @@ class FacebookMessages extends BaseStrategy {
 
 	  waitFor("div[aria-label='Chats'] a[href^='/messages/']", el => {
       this.menuItems = document.querySelectorAll("div[aria-label='Chats'] a[href^='/messages/']");
-      console.log(this.menuItems);
+      log.info(this.menuItems);
       this.menuItems[this.menuIndex].click();
     });
 
@@ -336,9 +363,9 @@ class FacebookMessages extends BaseStrategy {
 
 class StrategyFactory {
   static get(hostname) {
-    if (hostname.includes("youtube.com")) return new YouTubeStrategy();
-    if (hostname.includes("google.com")) return new GoogleStrategy();
-    if (hostname.includes("facebook.com")) return new FacebookMessages();
+    // if (hostname.includes("youtube.com")) return new YouTubeStrategy();
+    // if (hostname.includes("google.com")) return new GoogleStrategy();
+    // if (hostname.includes("facebook.com")) return new FacebookMessages();
     return new BaseStrategy();
   }
 }
@@ -347,42 +374,106 @@ class StrategyFactory {
  * MODULE 5: THE CORE (Command Registry)
  * ============================================================================ */
 class ExtensionCore {
-  constructor(config) {
-    const hostname = window.location.hostname;
+  constructor(config, hostname) {
+    this.config = config
+    this.hostname = hostname;
+
     this.currentMode = "NAV_MODE";
+    this.inputManager = new InputManager(this, null);
+    this.setMode(this.currentMode);
 
     document.addEventListener('DOMContentLoaded', () => {this.strategy = StrategyFactory.get(hostname);});
     
-    const effectiveKeymap = generateEffectiveKeymap(config, hostname, this.currentMode);
-    const trie = new KeyTrie(effectiveKeymap);
-    
-    this.inputManager = new InputManager(this, trie);
+    // TODO: Maybe use methods to get page data necessary for actions
+    //  from strategy and execute here, to keep strategies stateless.
+    // i.e get list of main items for i/j/k/l
+  }
+
+  setMode(mode) {
+    this.currentMode = mode;
+    const newEffectiveKeymap = generateEffectiveKeymap(this.config, this.hostname, this.currentMode);
+    const newTrie = new KeyTrie(newEffectiveKeymap);
+    this.inputManager.trie = newTrie;
   }
 
   executeCommand(commandId) { // calls delagate
     switch (commandId) {
-      case "focus_search":
-        return this.strategy.focusSearch();
+      // NAV_MODE
+      case "set_NORMAL_MODE":
+        this.setMode("NORMAL_MODE");
+        this.strategy.setNormalMode();
+        break;
       case "scroll_down":
-        return window.scrollBy({ top: 400, behavior: 'smooth' });
+        window.scrollBy({ top: 400, behavior: 'smooth' });
+        break;
       case "scroll_up":
-        return window.scrollBy({ top: -400, behavior: 'smooth' });
-      case "shortcut_mode":
-        return this.strategy.setMode(SHORTCUT_MODE);
+        window.scrollBy({ top: -400, behavior: 'smooth' });
+        break;
       case "go_home":
-        return this.strategy.goHome();
-      case "go_up":
-        return this.strategy.goUp();
-      case "go_down":
-        return this.strategy.goDown();
-      case "enter":
-        return this.strategy.enter();
+        this.strategy.goHome();
+        break;
       case "menu_up":
-        return this.strategy.menuUp();
+        this.strategy.menuUp();
+        break;
       case "menu_down":
-        return this.strategy.menuDown();
+        this.strategy.menuDown();
+        break;
+      case "go_up":
+        this.strategy.goUp();
+        break;
+      case "go_down":
+        this.strategy.goDown();
+        break;
+
+      case "open_link":
+        this.strategy.openLink();
+        break;
+      case "open_link_in_new_tab":
+        this.strategy.openLinkInNewTab();
+        break;
+        
+      case "focus_search":
+        this.strategy.focusSearch();
+        break;
+
+
+      // NORMAL_MODE
+      case "set_NAV_MODE":
+        this.setMode("NAV_MODE");
+        this.strategy.setNavMode();
+        break;
+      case "set_INSERT_MODE":
+        this.setMode("INSERT_MODE");
+        this.strategy.setInsertMode();
+        break;
+      case "set_VISUAL_LINE_MODE":
+        this.setMode("VISUAL_LINE_MODE");
+        this.strategy.setVisualLineMode();
+        break;
+      case "set_VISUAL_CHAR_MODE":
+        this.setMode("VISUAL_LINE_MODE");
+        this.strategy.setVisualCharMode();
+        break;
+      case "move_cursor_down":
+        this.strategy.moveCursorDown();
+        break;
+      case "move_cursor_up":
+        this.strategy.moveCursorUp();
+        break;
+      case "x":
+        this.strategy.deleteChar();
+        break;
+
+
+      // Other modes
+      case "set_NORMAL_MODE":
+        this.setMode("NORMAL_MODE");
+        this.strategy.setNormalMode();
+        break;
+
+
       default:
-        console.warn(`Command ${commandId} not recognized.`);
+        log. warn(`Command ${commandId} not recognized.`);
     }
   }
 }
@@ -406,7 +497,7 @@ class InputManager {
 
     // 2. Normalize and update buffer
     const keyString = normalizeKey(event);
-    console.log(keyString);
+    log.info(keyString);
     // Ignore stray modifier keys
     if (!keyString) return;
 
@@ -448,4 +539,4 @@ class InputManager {
  * INIT
  * ============================================================================ */
 // Start the extension
-new ExtensionCore(USER_CONFIG);
+new ExtensionCore(USER_CONFIG, window.location.hostname);
