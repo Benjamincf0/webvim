@@ -1,5 +1,28 @@
 const waitFor=(s,c,o=new MutationObserver(()=>{const e=document.querySelector(s);if(e){o.disconnect();c(e)}}))=>(o.observe(document.body,{childList:!0,subtree:!0}),o);
 
+function waitForElement(selector) {
+  return new Promise((resolve) => {
+    // Check if it's already there before we even start watching
+    const element = document.querySelector(selector);
+    if (element) {
+      return resolve(element);
+    }
+
+    const observer = new MutationObserver(() => {
+      const element = document.querySelector(selector);
+      if (element) {
+        observer.disconnect();
+        resolve(element);
+      }
+    });
+
+    observer.observe(document, {
+      childList: true,
+      subtree: true,
+    });
+  });
+}
+
 const log = {
   info: (...args) => console.log('[BetterWeb]', ...args),
   warn: (...args) => console.warn('[BetterWeb]', ...args),
@@ -16,7 +39,8 @@ log.info('This is from my extension');
 const USER_CONFIG = {
   "global": {
     "NAV_MODE": {
-      "mod+shift+e f f": "set_NORMAL_MODE",
+      "mod+shift+e o": "open_extension_config",
+      "mod+shift+e n": "set_NORMAL_MODE",
       "shift+j": "scroll_down",
       "shift+k": "scroll_up",
       "ctrl+g h": "go_home",
@@ -53,7 +77,6 @@ const USER_CONFIG = {
   },
   "youtube.com": {
     // "mod+k": "focus_search",
-     // Example of a chord/sequence
   },
   "google.com": {
     // "mod+k": "focus_search",
@@ -165,29 +188,6 @@ class BaseStrategy {
     //     }
     // });
 
-    // TODO: Create a UIManager class connected to ExtensionCore that handles UI
-    //    - add a shortcut to show a small menu with a form
-    //    - small form to edit config & save to browser storage
-    //    - at the start, load file from storage to generate config json.
-    // const inject = () => {
-    //   this.box = document.createElement('div');
-    //   this.box.innerHTML = '<p style="margin: 0">N</p>';
-    //   Object.assign(this.box.style, {
-    //     position: 'fixed',
-    //     top: '0px',
-    //     right: '0px',
-    //     zIndex: '2147483647',
-    //     background: '#000000',
-    //     color: '#ffffff',
-    //     padding: '2px 2px',
-    //     borderRadius: '0px',
-    //     font: '15px sans-serif'
-    //   });
-    //   document.body.appendChild(this.box);
-    // };
-
-    // inject();
-
     this.menuIndex = 0;
     this.menuItems = [];
   }
@@ -238,23 +238,6 @@ class BaseStrategy {
   setVisualCharMode() {
     log.info("setVisualCharMode");
   }
-
-  
-
-  // setMode(mode) {
-  //   switch (mode) {
-  //     case SHORTCUT_MODE:
-  //       // We wrap the blur in a timeout so it defers and runs after default and propagation.
-  //       setTimeout(() => {document.activeElement.blur()}, 0);
-  //       this._MODE = SHORTCUT_MODE
-  //       return false;
-  //     case EDIT_MODE:
-  //       this._MODE = EDIT_MODE;
-  //       break;
-  //     default:
-  //       break;
-  //   }
-  // }
 }
 
 class YouTubeStrategy extends BaseStrategy {
@@ -348,7 +331,6 @@ class FacebookMessages extends BaseStrategy {
       this.menuItems[this.menuIndex].click();
     });
 
-
   }
     menuDown() {
       super.menuDown()
@@ -370,6 +352,115 @@ class StrategyFactory {
   }
 }
 
+
+class UIManager {
+  constructor(core) {
+    this.core = core;
+    // TODO: Create a UIManager class connected to ExtensionCore that handles UI
+    //    - add a shortcut to show a small menu with a form
+    //    - small form to edit config & save to browser storage
+    //    - at the start, load file from storage to generate config json.
+  }
+
+  async initUI() {
+    await waitForElement("body");
+
+    this.box = document.createElement('div');
+    // 1. Create Heading 1
+    const h1 = document.createElement('h1');
+    h1.textContent = "Web Shortcuts Extension";
+
+    // 2. Create Heading 2
+    const h2 = document.createElement('h2');
+    h2.textContent = "Add your configurations here";
+
+    // 3. Create Form and its children
+    const form = document.createElement('form');
+
+    this.textarea = document.createElement('textarea');
+    this.textarea.id = "asdf";
+
+    const button = document.createElement('button');
+    button.type = "submit";
+    button.textContent = "Submit"; // Buttons usually need label text
+    button.addEventListener("click", (e) => {this.handleSubmitForm(e)})
+
+    // 4. Assemble the form
+    form.appendChild(this.textarea);
+    form.appendChild(button);
+
+    // 5. Add everything to your container (this.box)
+    this.box.append(h1, h2, form);
+    Object.assign(this.box.style, {
+      // all: 'revert',
+      position: 'fixed',
+      top: '10px',
+      right: '10px',
+      zIndex: '2147483647',
+      background: '#000000',
+      color: '#ffffff',
+      padding: '25px',
+      borderRadius: '10px',
+      width: '80vw',
+      font: 'sans-serif'
+    });
+
+    Object.assign(this.textarea.style,{
+      display: 'block',
+      height: '150px',
+      width: '100%'
+    })
+
+    Object.assign(button.style, {
+      width: '100%',
+      height: '45px',
+    })
+    
+    this.host = document.createElement('div');
+    this.hideUI();
+    document.body.appendChild(this.host);
+    const shadow = this.host.attachShadow({ mode: 'closed' });
+    shadow.appendChild(this.box);
+
+    document.body.addEventListener("click", (e) => {
+      if (!this.host.contains(e.target)) {
+        this.hideUI();
+      }
+    })
+  }
+
+  hideUI() {
+    this.host.style.display = "none";
+  }
+
+  showUI() {
+    this.textarea.value = JSON.stringify(this.core.config, null, '\t');
+    this.host.style.display = "inline-block";
+  }
+
+  async handleSubmitForm(e) {
+    e.preventDefault();
+    log.info(e);
+
+    // await new Promise((resolve) => setTimeout(resolve, 2000)); // wooo waiting lmao
+    let configJSON = null;
+    log.info(this.textarea.value);
+    try {
+      configJSON = JSON.parse(this.textarea.value);
+    } catch (error) {
+      log.error("JSON aint legit bruh "+error);
+      return;
+    }
+
+    await chrome.storage.local.set({ 
+      configJSON: configJSON,
+    });
+    log.info(`Data saved! : ${configJSON}`);
+
+    this.core.updateConfig(configJSON);
+  }
+}
+
 /** ===========================================================================
  * MODULE 5: THE CORE (Command Registry)
  * ============================================================================ */
@@ -377,6 +468,9 @@ class ExtensionCore {
   constructor(config, hostname) {
     this.config = config
     this.hostname = hostname;
+
+    this.UIManager = new UIManager(this);
+    this.UIManager.initUI();
 
     this.currentMode = "NAV_MODE";
     this.inputManager = new InputManager(this, null);
@@ -391,7 +485,12 @@ class ExtensionCore {
 
   setMode(mode) {
     this.currentMode = mode;
-    const newEffectiveKeymap = generateEffectiveKeymap(this.config, this.hostname, this.currentMode);
+    this.updateConfig(this.config)
+  }
+
+  updateConfig(newConfig) {
+    this.config = newConfig;
+    const newEffectiveKeymap = generateEffectiveKeymap(newConfig, this.hostname, this.currentMode);
     const newTrie = new KeyTrie(newEffectiveKeymap);
     this.inputManager.trie = newTrie;
   }
@@ -399,6 +498,9 @@ class ExtensionCore {
   executeCommand(commandId) { // calls delagate
     switch (commandId) {
       // NAV_MODE
+      case "open_extension_config":
+        this.UIManager.showUI();
+        break;
       case "set_NORMAL_MODE":
         this.setMode("NORMAL_MODE");
         this.strategy.setNormalMode();
@@ -473,7 +575,7 @@ class ExtensionCore {
 
 
       default:
-        log. warn(`Command ${commandId} not recognized.`);
+        log.warn(`Command ${commandId} not recognized.`);
     }
   }
 }
@@ -525,7 +627,7 @@ class InputManager {
     } else if (result.isPrefix) {
       // Waiting for next key in sequence (e.g., pressed 'g', waiting for 'h')
       clearTimeout(this.timer);
-      this.timer = setTimeout(() => this.resetBuffer(), 1000);
+      this.timer = setTimeout(() => this.resetBuffer(), 2000);
     }
   }
 
@@ -539,4 +641,10 @@ class InputManager {
  * INIT
  * ============================================================================ */
 // Start the extension
-new ExtensionCore(USER_CONFIG, window.location.hostname);
+async function main() {
+  const result = await chrome.storage.local.get({ configJSON: USER_CONFIG });
+  console.log("Applying config:", result.configJSON);
+  new ExtensionCore(result.configJSON, window.location.hostname);
+}
+
+main();
