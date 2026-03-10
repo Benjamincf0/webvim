@@ -11,6 +11,12 @@ export class BaseStrategy {
     //       this.setMode(EDIT_MODE);
     //     }
     // });
+    //
+    //
+    // document.addEventListener("focusin", (e) => {
+    //   if e.target:
+    //   this.core.setInsertMode();
+    // });
   }
 
   setNormalMode() {
@@ -62,13 +68,41 @@ export class BaseStrategy {
 }
 
 export class YouTubeStrategy extends BaseStrategy {
-  // TODO:
+  constructor(core) {
+    super(core);
+    document.querySelectorAll("#contents yt-touch-feedback-shape");
+    waitFor("#contents yt-touch-feedback-shape", (el) => {
+      this.core.mainItems = document.querySelectorAll("#contents #content");
+      log.info("test");
+      log.info(this.core.mainItems);
+      this.core.mainItemsIndex = 0;
+      this.focusMainItem(0, undefined, false);
+    });
+
+    waitFor("#items", (el) => {
+      this.core.mainMenuItems = document.querySelector("#items").children;
+      log.info(this.core.mainMenuItems);
+      this.core.mainMenuItemsIndex = 0;
+    });
+  }
+
+  focusMainItem(i) {
+    newItem = this.core.mainItems[i].querySelector("yt-touch-feedback-shape");
+    newItem.classList.add("yt-spec-touch-feedback-shape--hovered");
+  }
+
   focusSearch() {
     const searchBox = document.querySelector(
       'form[action="/results"] input[name="search_query"]',
     );
     if (searchBox) searchBox.focus();
     log.info("SUCCESS");
+  }
+
+  focusMainMenuItem(i) {
+    log.info(`focusing main menu item ${i}`);
+    this.core.mainMenuItems[i].querySelector("a").click();
+    this.core.mainMenuItemsIndex = i;
   }
 }
 
@@ -84,41 +118,21 @@ export class GoogleStrategy extends BaseStrategy {
         el.querySelector("div").style.padding = "10px";
       });
       this.core.mainItemsIndex = 0;
-      this.focusResult(0);
+      this.focusMainItem(0, undefined, false);
     });
 
     waitFor("div[role='listitem'] a[href^='/search?']", (el) => {
-      this.menuItems = document.querySelectorAll(
+      this.core.mainMenuItems = document.querySelectorAll(
         "div[role='listitem'] a[href^='/search?']",
       );
       const currentMenuItem = document.querySelector(
         "div[role='listitem'] a[aria-disabled='true']",
       );
-      const num = [...this.menuItems].indexOf(currentMenuItem);
-      log.info("THE NUM IS " + num + this.menuItems + currentMenuItem);
-      this.menuIndex = num;
+      const num = [...this.core.mainMenuItems].indexOf(currentMenuItem);
+      log.info("THE NUM IS " + num + this.core.mainMenuItems + currentMenuItem);
+      this.mainMenuItems = num;
       // this.menuItems[this.menuIndex].click();
     });
-  }
-
-  menuDown() {
-    super.menuDown();
-  }
-
-  menuUp() {
-    super.menuUp();
-  }
-
-  goUp() {
-    this.focusResult(Math.max(this.core.mainItemsIndex - 1, 0));
-    log.info("going up");
-  }
-
-  goDown() {
-    this.focusResult(
-      Math.min(this.core.mainItemsIndex + 1, this.core.mainItems.length - 1),
-    );
-    log.info("going down");
   }
 
   openLink() {
@@ -130,10 +144,11 @@ export class GoogleStrategy extends BaseStrategy {
   openLinkInNewTab() {
     let current = this.core.mainItems[this.core.mainItemsIndex];
     let inner_link = current.querySelector("span a");
-    window.open(inner_link.href, "_blank");
+    window.open(inner_link.href, "_blank").blur();
+    window.focus();
   }
 
-  focusResult(i) {
+  focusMainItem(i, j = null, scroll = true) {
     let prev = this.core.mainItems[this.core.mainItemsIndex];
     let prevChild = prev.querySelector("div");
     let current = this.core.mainItems[i];
@@ -146,7 +161,12 @@ export class GoogleStrategy extends BaseStrategy {
     child.style.backgroundColor = "rgba(216, 179, 194, 0.4)";
     child.style.borderRadius = "10px";
     this.core.mainItemsIndex = i;
-    current.scrollIntoViewIfNeeded(true);
+    if (scroll) {
+      current.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
     current.focus();
   }
 

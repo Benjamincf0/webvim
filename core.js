@@ -64,16 +64,32 @@ export class ExtensionCore {
         this.strategy.goHome();
         break;
       case "menu_up":
-        this.strategy.menuUp();
+        this.strategy.focusMainMenuItem(
+          Math.max(this.mainMenuItemsIndex - 1, 0),
+        );
         break;
       case "menu_down":
+        this.strategy.focusMainMenuItem(
+          Math.min(this.mainMenuItemsIndex + 1, this.mainMenuItems.length - 1),
+        );
         this.strategy.menuDown();
         break;
       case "go_up":
-        this.strategy.goUp();
+        if (this.mainItemsIndex > 0) {
+          this.strategy.focusMainItem(this.mainItemsIndex - 1);
+        } else {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
         break;
       case "go_down":
-        this.strategy.goDown();
+        if (this.mainItemsIndex < this.mainItems.length - 1) {
+          this.strategy.focusMainItem(this.mainItemsIndex + 1);
+        } else {
+          window.scrollTo({
+            top: document.body.scrollHeight,
+            behavior: "smooth",
+          });
+        }
         break;
 
       case "open_link":
