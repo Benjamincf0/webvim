@@ -5,8 +5,12 @@
   "description": "Custom keyboard shortcuts using a Trie and Strategy pattern.",
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "dist/content.js"
+      ],
       "run_at": "document_start"
     }
   ],
@@ -14,3 +18,4 @@
     "storage"
   ]
 }
+
