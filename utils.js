@@ -39,9 +39,6 @@ export const log = {
   error: (...args) => console.error("[BetterWeb]", ...args),
 };
 
-// Usage
-log.info("This is from my extension");
-
 /** ===========================================================================
  * MODULE 2: KEY UTILITIES & RESOLVER
  * ============================================================================ */
@@ -78,4 +75,23 @@ export function generateEffectiveKeymap(config, hostname, currentMode) {
   }
   log.info(effectiveMap);
   return effectiveMap;
+}
+
+export function isUserTyping(el) {
+  if (!el) return false;
+  const tag = el.tagName;
+  if (tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (tag === "INPUT") {
+    const nonTyping = [
+      "button",
+      "checkbox",
+      "radio",
+      "submit",
+      "reset",
+      "file",
+      "image",
+    ];
+    return !nonTyping.includes(el.type);
+  }
+  return el.isContentEditable;
 }

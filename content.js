@@ -33,6 +33,8 @@ const USER_CONFIG = {
     },
     INSERT_MODE: {
       escape: "set_NORMAL_MODE",
+      "ctrl+n": "arrow_up",
+      "ctrl+p": "arrow_down",
     },
     VISUAL_LINE_MODE: {
       escape: "set_NORMAL_MODE",

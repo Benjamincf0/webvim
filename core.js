@@ -1,4 +1,4 @@
-import { generateEffectiveKeymap } from "./utils.js";
+import { generateEffectiveKeymap, isUserTyping } from "./utils.js";
 import { StrategyFactory } from "./strategy.js";
 import { UIManager } from "./uimanager.js";
 import { KeyTrie } from "./trie.js";
@@ -25,6 +25,12 @@ export class ExtensionCore {
     // TODO: Maybe use methods to get page data necessary for actions
     //  from strategy and execute here, to keep strategies stateless.
     // i.e get list of main items for i/j/k/l
+    document.addEventListener("focusin", () => {
+      if (isUserTyping(document.activeElement)) {
+        this.setMode("INSERT_MODE");
+        this.strategy.setInsertMode();
+      }
+    });
   }
 
   setMode(mode) {
@@ -130,6 +136,23 @@ export class ExtensionCore {
         this.strategy.deleteChar();
         break;
 
+      // INSERT_MODE
+      case "arrow_down":
+        const event = new KeyboardEvent("keydown", {
+          key: "ArrowDown",
+          code: "ArrowDown", // Use 'code' for physical key location if needed
+          bubbles: true, // Event should bubble up through the DOM
+          cancelable: true, // Event can be cancelled (e.g., prevent default action)
+        });
+        document.dispatchEvent(event);
+      case "arrow_up":
+        const event1 = new KeyboardEvent("keydown", {
+          key: "ArrowUp",
+          code: "ArrowUp", // Use 'code' for physical key location if needed
+          bubbles: true, // Event should bubble up through the DOM
+          cancelable: true, // Event can be cancelled (e.g., prevent default action)
+        });
+        document.dispatchEvent(event1);
       // Other modes
       // case "set_NORMAL_MODE":
       //   this.setMode("NORMAL_MODE");

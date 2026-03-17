@@ -1,5 +1,7 @@
 {
   "scripts": {
-    "build": "vite build"
+    "build": "vite build",
+    "debug": "vite -d"
   }
 }
+

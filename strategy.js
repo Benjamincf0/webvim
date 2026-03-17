@@ -13,10 +13,6 @@ export class BaseStrategy {
     // });
     //
     //
-    // document.addEventListener("focusin", (e) => {
-    //   if e.target:
-    //   this.core.setInsertMode();
-    // });
   }
 
   setNormalMode() {
@@ -51,6 +47,9 @@ export class BaseStrategy {
 
   // NORMAL_MODE
   setNavMode() {
+    setTimeout(() => {
+      document.activeElement.blur();
+    }, 0);
     log.info("setNavMode");
   }
 
