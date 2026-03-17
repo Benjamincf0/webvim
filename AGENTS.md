@@ -2,13 +2,15 @@
 
 This document provides guidelines for agentic coding agents working on this codebase.
 
+---
+
 ## Project Overview
 
 web-vim is a browser extension that provides Vim-style keyboard navigation for websites. It uses:
 - **Runtime**: Bun
 - **Build Tool**: Vite
-- **Language**: Plain JavaScript (ES Modules)
-- **Type Checking**: None (despite tsconfig.json, actual code is JS)
+- **Language**: TypeScript
+- **Type Checking**: TypeScript (strict mode enabled)
 
 ---
 
@@ -18,7 +20,7 @@ web-vim is a browser extension that provides Vim-style keyboard navigation for w
 # Install dependencies
 bun install
 
-# Build the extension
+# Build the extension (outputs to dist/)
 bun run build
 
 # Run development server (hot reload)
@@ -26,11 +28,15 @@ bun run
 
 # Debug mode
 bun run debug
+
+# Type check only (no build)
+bunx tsc --noEmit
+
+# Build and type check together
+bun run build && bunx tsc --noEmit
 ```
 
-**There are no configured test or lint commands.** If adding tests or linting, use:
-- **Testing**: Vitest (works well with Vite)
-- **Linting**: ESLint with eslint-plugin-import
+There are currently no test or lint commands configured.
 
 ---
 
@@ -38,9 +44,9 @@ bun run debug
 
 ### General Conventions
 
-- **Language**: Plain JavaScript (no TypeScript, even though tsconfig.json exists)
-- **Modules**: ES Modules with explicit `.js` extensions in imports
-- **Files**: One class per file,文件名匹配类名 (e.g., `InputManager.js` contains `InputManager` class)
+- **Language**: TypeScript
+- **Modules**: ES Modules with explicit `.ts` extensions in imports
+- **Files**: One class per file, filename matches class name (e.g., `InputManager.ts` contains `InputManager` class)
 
 ### Naming Conventions
 
@@ -49,17 +55,43 @@ bun run debug
 | Classes | PascalCase | `ExtensionCore`, `InputManager` |
 | Functions/methods | camelCase | `handleKeyDown`, `executeCommand` |
 | Constants | camelCase | `currentMode`, `mainItemsIndex` |
-| Files | PascalCase (matching class) | `InputManager.js` |
+| Types/Interfaces | PascalCase | `UserConfig`, `TrieNode` |
+| Files | PascalCase (matching class) | `InputManager.ts` |
+
+### Type Annotations
+
+- **Always** annotate function parameters and return types
+- **Always** annotate class properties
+- Use `import type { X }` for type-only imports (required by `verbatimModuleSyntax`)
+
+```typescript
+// Correct
+import type { UserConfig, Mode } from "./types.js";
+import { waitFor } from "./utils.js";
+
+export class KeyTrie {
+  root: TrieNode;
+
+  constructor(keymap: KeymapConfig) {
+    this.root = { children: {} };
+  }
+
+  search(buffer: string[]): TrieSearchResult {
+    // ...
+  }
+}
+```
 
 ### Import Style
 
-```javascript
-// Group imports: external → internal
+```typescript
+// Group imports: external → internal → types
 import { waitFor, log } from "./utils.js";
+import type { ExtensionCore } from "./types.js";
 import { StrategyFactory } from "./strategy.js";
 
 // Use curly braces for named exports
-// Include .js extension for local imports
+// Include .ts extension for local imports
 ```
 
 ### Formatting
@@ -70,32 +102,74 @@ import { StrategyFactory } from "./strategy.js";
 - **Line length**: No strict limit, but keep under 120 chars when reasonable
 - **Curly braces**: Same-line opening brace for functions/classes
 
-```javascript
+```typescript
 export class ExtensionCore {
-  constructor(config, hostname) {
+  constructor(config: UserConfig, hostname: string) {
     this.config = config;
   }
 }
 ```
 
-### Error Handling
+### Null Handling
+
+TypeScript strict mode is enabled. Handle null/undefined explicitly:
+
+```typescript
+// Bad - will error with strict null checks
+const item = items[i];
+item.click(); // Object is possibly 'undefined'
+
+// Good - explicit check
+const item = items[i];
+if (item) {
+  item.click();
+}
+
+// Good - optional chaining
+items[i]?.click();
+
+// Good - early return
+if (!items || items.length === 0) return;
+```
+
+### Definite Assignment
+
+Use `!` for properties initialized outside the constructor (e.g., in async initialization):
+
+```typescript
+export class UIManager {
+  box!: HTMLDivElement;  // Initialized in initUI(), not constructor
+  textarea!: HTMLTextAreaElement;
+  host!: HTMLDivElement;
+
+  constructor(core: ExtensionCore) {
+    this.core = core;
+  }
+}
+```
+
+---
+
+## Error Handling
 
 - Use the shared `log` utility for logging (not bare `console.log`):
-  ```javascript
+  ```typescript
   import { log } from "./utils.js";
-  
+
   log.info("message");
   log.warn("message");
   log.error("message");
   ```
 
 - Use `try/catch` for async operations and DOM queries that may fail
-- Handle null/undefined checks explicitly (see `isUserTyping` in utils.js)
+- Handle null/undefined checks explicitly
 
-### Comment Style
+---
+
+## Comment Style
 
 - Use block comments for section headers:
-  ```javascript
+  ```typescript
   /** ===========================================================================
    * MODULE 5: THE CORE (Command Registry)
    * ============================================================================ */
@@ -104,9 +178,11 @@ export class ExtensionCore {
 - Use inline comments sparingly to explain non-obvious logic
 - TODO comments should reference specific issues when possible
 
-### Patterns & Best Practices
+---
 
-1. **MutationObserver for dynamic content**: Use `waitFor` or `waitForElement` utilities (utils.js) for elements that load asynchronously
+## Patterns & Best Practices
+
+1. **MutationObserver for dynamic content**: Use `waitFor` or `waitForElement` utilities (utils.ts) for elements that load asynchronously
 
 2. **Key normalization**: Use `normalizeKey()` to handle cross-platform modifiers (mod = Cmd on Mac, Ctrl on Windows)
 
@@ -116,20 +192,25 @@ export class ExtensionCore {
 
 5. **DOM queries**: Cache repeated queries; use `querySelectorAll` for collections
 
+6. **Chrome API**: Use `window.chrome.storage.local.get/set` - the chrome global is declared in `types.ts`
+
 ---
 
 ## Project Structure
 
 ```
-/src or / (root)       # Source files
-├── core.js            # ExtensionCore - main controller
-├── InputManager.js   # Keyboard input handling
-├── strategy.js       # Site strategies & factory
-├── utils.js          # Utilities (waitFor, log, normalizeKey)
-├── uimanager.js      # UI overlay management
-├── trie.js           # Key sequence matching
-├── content.js        # Content script entry point
-└── manifest.json     # Extension manifest
+/src                    # Source files (TypeScript)
+├── types.ts            # Shared types and interfaces
+├── utils.ts            # Utilities (waitFor, log, normalizeKey)
+├── trie.ts             # KeyTrie - key sequence matching
+├── InputManager.ts     # Keyboard input handling
+├── uimanager.ts        # UI overlay management
+├── strategy.ts         # Site strategies & factory
+├── core.ts             # ExtensionCore - main controller
+└── content.ts          # Content script entry point
+
+/dist                   # Build output (loaded by extension)
+/manifest.json          # Extension manifest
 ```
 
 ---
@@ -138,28 +219,36 @@ export class ExtensionCore {
 
 ### Adding a New Command
 
-1. Add command ID in `core.js` switch statement
-2. Implement in relevant strategy or add to `BaseStrategy`
-3. Add keybinding in extension config (loaded at runtime)
+1. Add command ID to `CommandId` type in `types.ts`
+2. Add command handler in `core.ts` switch statement
+3. Implement in relevant strategy or add to `BaseStrategy`
+4. Add keybinding in extension config (loaded at runtime)
+
+### Adding a New Mode
+
+1. Add mode string to `Mode` type in `types.ts`
+2. Add mode switching commands in `core.ts`
+3. Add keybindings in `content.ts` config
 
 ### Adding a New Site Strategy
 
-1. Create new class extending `BaseStrategy` in `strategy.js`
+1. Create new class extending `BaseStrategy` in `strategy.ts`
 2. Add hostname matching in `StrategyFactory.get()`
 3. Implement needed methods for site interactions
 
 ### Testing Changes
 
-Since there's no test framework:
 1. Build with `bun run build`
-2. Load `dist/` folder as unpacked extension in Chrome
-3. Check console for `[BetterWeb]` log output
+2. Type check with `bunx tsc --noEmit`
+3. Load `dist/` folder as unpacked extension in Chrome
+4. Check console for `[BetterWeb]` log output
 
 ---
 
 ## Important Notes
 
-- The `tsconfig.json` exists but the project uses plain JavaScript
 - This is a browser extension (Chrome/Firefox), not a web app
 - DOM manipulation is core to the functionality
 - The extension intercepts keyboard events via `addEventListener("keydown", ..., true)` (capture phase)
+- TypeScript strict mode is enabled - all types must be explicit
+- Use `import type` for type-only imports to satisfy `verbatimModuleSyntax`
