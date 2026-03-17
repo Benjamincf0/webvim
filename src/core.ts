@@ -1,30 +1,41 @@
-import { generateEffectiveKeymap, isUserTyping } from "./utils.js";
+import { generateEffectiveKeymap, isUserTyping, log } from "./utils.js";
 import { StrategyFactory } from "./strategy.js";
 import { UIManager } from "./uimanager.js";
 import { KeyTrie } from "./trie.js";
 import { InputManager } from "./InputManager.js";
-/** ===========================================================================
- * MODULE 5: THE CORE (Command Registry)
- * ============================================================================ */
+import type { Mode, UserConfig, CommandId } from "./types.js";
+
 export class ExtensionCore {
-  constructor(config, hostname) {
+  config: UserConfig;
+  hostname: string;
+  currentMode: Mode;
+  UIManager: UIManager;
+  inputManager: InputManager;
+  mainItems: HTMLElement[];
+  mainItemsIndex: number;
+  mainMenuItems: HTMLElement[];
+  mainMenuItemsIndex: number;
+  private strategy!: ReturnType<typeof StrategyFactory.get>;
+
+  constructor(config: UserConfig, hostname: string) {
     this.config = config;
     this.hostname = hostname;
+    this.mainItems = [];
+    this.mainItemsIndex = 0;
+    this.mainMenuItems = [];
+    this.mainMenuItemsIndex = 0;
 
-    this.UIManager = new UIManager(this);
+    this.UIManager = new UIManager(this as unknown as import("./types.js").ExtensionCore);
     this.UIManager.initUI();
 
     this.currentMode = "NAV_MODE";
-    this.inputManager = new InputManager(this, null);
+    this.inputManager = new InputManager(this as unknown as import("./types.js").ExtensionCore, null);
     this.setMode(this.currentMode);
 
     document.addEventListener("DOMContentLoaded", () => {
-      this.strategy = StrategyFactory.get(this, hostname);
+      this.strategy = StrategyFactory.get(this as unknown as import("./types.js").ExtensionCore, hostname);
     });
 
-    // TODO: Maybe use methods to get page data necessary for actions
-    //  from strategy and execute here, to keep strategies stateless.
-    // i.e get list of main items for i/j/k/l
     document.addEventListener("focusin", () => {
       if (isUserTyping(document.activeElement)) {
         this.setMode("INSERT_MODE");
@@ -33,12 +44,12 @@ export class ExtensionCore {
     });
   }
 
-  setMode(mode) {
+  setMode(mode: Mode): void {
     this.currentMode = mode;
     this.updateConfig(this.config);
   }
 
-  updateConfig(newConfig) {
+  updateConfig(newConfig: UserConfig): void {
     this.config = newConfig;
     const newEffectiveKeymap = generateEffectiveKeymap(
       newConfig,
@@ -49,10 +60,8 @@ export class ExtensionCore {
     this.inputManager.trie = newTrie;
   }
 
-  executeCommand(commandId) {
-    // calls delagate
+  executeCommand(commandId: CommandId): boolean | undefined {
     switch (commandId) {
-      // NAV_MODE
       case "open_extension_config":
         this.UIManager.showUI();
         break;
@@ -70,14 +79,9 @@ export class ExtensionCore {
         this.strategy.goHome();
         break;
       case "menu_up":
-        this.strategy.focusMainMenuItem(
-          Math.max(this.mainMenuItemsIndex - 1, 0),
-        );
+        this.strategy.menuUp();
         break;
       case "menu_down":
-        this.strategy.focusMainMenuItem(
-          Math.min(this.mainMenuItemsIndex + 1, this.mainMenuItems.length - 1),
-        );
         this.strategy.menuDown();
         break;
       case "go_up":
@@ -97,19 +101,15 @@ export class ExtensionCore {
           });
         }
         break;
-
       case "open_link":
         this.strategy.openLink();
         break;
       case "open_link_in_new_tab":
         this.strategy.openLinkInNewTab();
         break;
-
       case "focus_search":
         this.strategy.focusSearch();
         break;
-
-      // NORMAL_MODE
       case "set_NAV_MODE":
         this.setMode("NAV_MODE");
         this.strategy.setNavMode();
@@ -132,35 +132,32 @@ export class ExtensionCore {
       case "move_cursor_up":
         this.strategy.moveCursorUp();
         break;
-      case "x":
+      case "delete_char":
         this.strategy.deleteChar();
         break;
-
-      // INSERT_MODE
-      case "arrow_down":
+      case "arrow_down": {
         const event = new KeyboardEvent("keydown", {
           key: "ArrowDown",
-          code: "ArrowDown", // Use 'code' for physical key location if needed
-          bubbles: true, // Event should bubble up through the DOM
-          cancelable: true, // Event can be cancelled (e.g., prevent default action)
+          code: "ArrowDown",
+          bubbles: true,
+          cancelable: true,
         });
         document.dispatchEvent(event);
-      case "arrow_up":
-        const event1 = new KeyboardEvent("keydown", {
+        break;
+      }
+      case "arrow_up": {
+        const event = new KeyboardEvent("keydown", {
           key: "ArrowUp",
-          code: "ArrowUp", // Use 'code' for physical key location if needed
-          bubbles: true, // Event should bubble up through the DOM
-          cancelable: true, // Event can be cancelled (e.g., prevent default action)
+          code: "ArrowUp",
+          bubbles: true,
+          cancelable: true,
         });
-        document.dispatchEvent(event1);
-      // Other modes
-      // case "set_NORMAL_MODE":
-      //   this.setMode("NORMAL_MODE");
-      //   this.strategy.setNormalMode();
-      //   break;
-
+        document.dispatchEvent(event);
+        break;
+      }
       default:
         log.warn(`Command ${commandId} not recognized.`);
     }
+    return true;
   }
 }

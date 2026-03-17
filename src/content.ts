@@ -1,9 +1,7 @@
 import { ExtensionCore } from "./core.js";
-/** ===========================================================================
- * MODULE 1: CONFIGURATION
- * This represents what would eventually come from chrome.storage
- * ============================================================================ */
-const USER_CONFIG = {
+import type { UserConfig } from "./types.js";
+
+const USER_CONFIG: UserConfig = {
   global: {
     NAV_MODE: {
       "mod+shift+e o": "open_extension_config",
@@ -16,7 +14,6 @@ const USER_CONFIG = {
       j: "go_down",
       k: "go_up",
     },
-    // "EDITABLE_MODE": {
     NORMAL_MODE: {
       escape: "set_NAV_MODE",
       i: "set_INSERT_MODE",
@@ -42,29 +39,31 @@ const USER_CONFIG = {
     VISUAL_CHAR_MODE: {
       escape: "set_NORMAL_MODE",
     },
-    // }
   },
   "youtube.com": {
-    // "mod+k": "focus_search",
+    NAV_MODE: {},
+    NORMAL_MODE: {},
+    INSERT_MODE: {},
+    VISUAL_LINE_MODE: {},
+    VISUAL_CHAR_MODE: {},
   },
   "google.com": {
     NAV_MODE: {
-      // "mod+k": "focus_search",
       "mod+enter": "open_link",
       "mod+shift+enter": "open_link_in_new_tab",
     },
     NORMAL_MODE: {},
+    INSERT_MODE: {},
+    VISUAL_LINE_MODE: {},
+    VISUAL_CHAR_MODE: {},
   },
 };
 
-/** ===========================================================================
- * INIT
- * ============================================================================ */
-// Start the extension
-async function main() {
-  const result = await chrome.storage.local.get({ configJSON: USER_CONFIG });
-  console.log("Applying config:", result.configJSON);
-  new ExtensionCore(result.configJSON, window.location.hostname);
+async function main(): Promise<void> {
+  const result = await window.chrome.storage.local.get("configJSON");
+  const configJSON = result.configJSON as UserConfig | undefined;
+  console.log("Applying config:", configJSON);
+  new ExtensionCore(configJSON || USER_CONFIG, window.location.hostname);
 }
 
 main();

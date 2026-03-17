@@ -1,15 +1,15 @@
-/** ===========================================================================
- * MODULE 3: THE TRIE DATA STRUCTURE
- * ============================================================================ */
+import type { TrieNode, TrieSearchResult, KeymapConfig } from "./types.js";
+
 export class KeyTrie {
-  constructor(keymap) {
+  root: TrieNode;
+  constructor(keymap: KeymapConfig) {
     this.root = { children: {} };
     this.build(keymap);
   }
 
-  build(keymap) {
+  build(keymap: KeymapConfig): void {
     for (const [keySequence, commandId] of Object.entries(keymap)) {
-      const keystrokes = keySequence.split(" "); // "g h" -> ["g", "h"]
+      const keystrokes = keySequence.split(" ");
       let currentNode = this.root;
 
       for (const key of keystrokes) {
@@ -18,14 +18,16 @@ export class KeyTrie {
         }
         currentNode = currentNode.children[key];
       }
-      currentNode.command = commandId; // adds the command id to the last key of the sequence in the trie
+      currentNode.command = commandId;
     }
   }
 
-  search(buffer) {
-    let node = this.root;
+  search(buffer: string[]): TrieSearchResult {
+    let node: TrieNode = this.root;
     for (const key of buffer) {
-      if (!node.children[key]) return { match: false, command: null };
+      if (!node.children[key]) {
+        return { match: false, command: null, isPrefix: false };
+      }
       node = node.children[key];
     }
 

@@ -1,27 +1,26 @@
-import { waitForElement, log } from "./utils.js";
+import { waitForElement } from "./utils.js";
+import type { ExtensionCore } from "./types.js";
 
 export class UIManager {
-  constructor(core) {
+  core: ExtensionCore;
+  box!: HTMLDivElement;
+  textarea!: HTMLTextAreaElement;
+  host!: HTMLDivElement;
+
+  constructor(core: ExtensionCore) {
     this.core = core;
-    // TODO: Create a UIManager class connected to ExtensionCore that handles UI
-    //    - add a shortcut to show a small menu with a form
-    //    - small form to edit config & save to browser storage
-    //    - at the start, load file from storage to generate config json.
   }
 
-  async initUI() {
+  async initUI(): Promise<void> {
     await waitForElement("body");
 
     this.box = document.createElement("div");
-    // 1. Create Heading 1
     const h1 = document.createElement("h1");
     h1.textContent = "Web Shortcuts Extension";
 
-    // 2. Create Heading 2
     const h2 = document.createElement("h2");
     h2.textContent = "Add your configurations here";
 
-    // 3. Create Form and its children
     const form = document.createElement("form");
 
     this.textarea = document.createElement("textarea");
@@ -29,19 +28,16 @@ export class UIManager {
 
     const button = document.createElement("button");
     button.type = "submit";
-    button.textContent = "Submit"; // Buttons usually need label text
+    button.textContent = "Submit";
     button.addEventListener("click", (e) => {
       this.handleSubmitForm(e);
     });
 
-    // 4. Assemble the form
     form.appendChild(this.textarea);
     form.appendChild(button);
 
-    // 5. Add everything to your container (this.box)
     this.box.append(h1, h2, form);
     Object.assign(this.box.style, {
-      // all: 'revert',
       position: "fixed",
       top: "10px",
       right: "10px",
@@ -72,40 +68,36 @@ export class UIManager {
     shadow.appendChild(this.box);
 
     document.body.addEventListener("click", (e) => {
-      if (!this.host.contains(e.target)) {
+      if (!this.host.contains(e.target as Node)) {
         this.hideUI();
       }
     });
   }
 
-  hideUI() {
+  hideUI(): void {
     this.host.style.display = "none";
   }
 
-  showUI() {
+  showUI(): void {
     this.textarea.value = JSON.stringify(this.core.config, null, "\t");
     this.host.style.display = "inline-block";
   }
 
-  async handleSubmitForm(e) {
+  async handleSubmitForm(e: Event): Promise<void> {
     e.preventDefault();
-    log.info(e);
 
-    // await new Promise((resolve) => setTimeout(resolve, 2000)); // wooo waiting lmao
-    let configJSON = null;
-    log.info(this.textarea.value);
+    let configJSON: unknown = null;
     try {
       configJSON = JSON.parse(this.textarea.value);
     } catch (error) {
-      log.error("JSON aint legit bruh " + error);
+      console.error("JSON parsing error:", error);
       return;
     }
 
-    await chrome.storage.local.set({
+    await window.chrome.storage.local.set({
       configJSON: configJSON,
     });
-    log.info(`Data saved! : ${configJSON}`);
 
-    this.core.updateConfig(configJSON);
+    this.core.updateConfig(configJSON as never);
   }
 }
