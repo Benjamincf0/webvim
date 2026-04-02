@@ -55,18 +55,18 @@ export interface TrieSearchResult {
   isPrefix: boolean;
 }
 
-export interface ExtensionCore {
-  config: UserConfig;
-  hostname: string;
-  currentMode: Mode;
-  mainItems: HTMLElement[];
-  mainItemsIndex: number;
-  mainMenuItems: HTMLElement[];
-  mainMenuItemsIndex: number;
-  setMode(mode: Mode): void;
-  updateConfig(newConfig: UserConfig): void;
-  executeCommand(commandId: CommandId): boolean | undefined;
-}
+// export interface ExtensionCore {
+//   config: UserConfig;
+//   hostname: string;
+//   currentMode: Mode;
+//   mainItems: HTMLElement[];
+//   mainItemsIndex: number;
+//   mainMenuItems: HTMLElement[];
+//   mainMenuItemsIndex: number;
+//   setMode(mode: Mode): void;
+//   updateConfig(newConfig: UserConfig): void;
+//   executeCommand(commandId: CommandId): boolean | undefined;
+// }
 
 declare global {
   interface Window {

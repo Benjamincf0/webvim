@@ -51,7 +51,7 @@ export class BaseStrategy {
   setNavMode(): void {
     log.info(`Current active element: ${document.activeElement}`);
     setTimeout(() => {
-      document.activeElement?.blur();
+      (document.activeElement as HTMLElement)?.blur();
     }, 0);
     log.info(`Current active element: ${document.activeElement}`);
     log.info("setNavMode");
@@ -62,7 +62,7 @@ export class BaseStrategy {
   }
 
   setVisualLineMode(): void {
-    document.activeElement?.select();
+    (document.activeElement as HTMLInputElement)?.select();
     log.info("setVisualLineMode");
   }
 

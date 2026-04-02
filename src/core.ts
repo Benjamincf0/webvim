@@ -73,7 +73,7 @@ export class ExtensionCore {
     this.inputManager.trie = newTrie;
   }
 
-  executeCommand(commandId: CommandId): boolean | undefined {
+  executeCommand(commandId: CommandId, event: Event): void {
     switch (commandId) {
       case "open_extension_config":
         this.UIManager.showUI();
@@ -134,7 +134,9 @@ export class ExtensionCore {
       case "set_VISUAL_LINE_MODE":
         this.setMode("VISUAL_LINE_MODE");
         this.strategy.setVisualLineMode();
-        return true;
+        event.preventDefault();
+        event.stopPropagation();
+        log.info("shouldve selected text");
         break;
       case "set_VISUAL_CHAR_MODE":
         this.setMode("VISUAL_LINE_MODE");
@@ -152,15 +154,18 @@ export class ExtensionCore {
       case "arrow_down": {
         log.info("arrow_down");
         triggerKeyDown("ArrowDown", 40);
+        event.preventDefault();
+        event.stopPropagation();
         break;
       }
       case "arrow_up": {
         triggerKeyDown("ArrowUp", 38);
+        event.preventDefault();
+        event.stopPropagation();
         break;
       }
       default:
         log.warn(`Command ${commandId} not recognized.`);
     }
-    return true;
   }
 }

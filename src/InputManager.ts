@@ -1,5 +1,5 @@
 import { normalizeKey, log } from "./utils.js";
-import type { ExtensionCore } from "./types.js";
+import { ExtensionCore } from "./core.ts";
 import { KeyTrie } from "./trie.js";
 
 export class InputManager {
@@ -35,11 +35,11 @@ export class InputManager {
     }
 
     if (result.command) {
-      const commandResult = this.core.executeCommand(result.command);
-      if (commandResult === true) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
+      this.core.executeCommand(result.command, event);
+      // if (commandResult === true) {
+      //   event.preventDefault();
+      //   event.stopPropagation();
+      // }
       this.resetBuffer();
     } else if (result.isPrefix) {
       if (this.timer) clearTimeout(this.timer);
