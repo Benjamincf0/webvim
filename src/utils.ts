@@ -10,7 +10,10 @@ export const waitFor = (
       c(e);
     }
   }),
-): MutationObserver => (o.observe(document.body, { childList: true, subtree: true }), o);
+): MutationObserver => (
+  o.observe(document.body, { childList: true, subtree: true }),
+  o
+);
 
 export function waitForElement(selector: string): Promise<Element | null> {
   const element = document.querySelector(selector);
@@ -97,7 +100,22 @@ export function isUserTyping(el: Element | null): boolean {
       "file",
       "image",
     ];
-    return !(el as HTMLInputElement).type && !nonTyping.includes((el as HTMLInputElement).type);
+    return (
+      !(el as HTMLInputElement).type &&
+      !nonTyping.includes((el as HTMLInputElement).type)
+    );
   }
   return (el as HTMLElement).isContentEditable;
+}
+
+export function triggerKeyDown(key: string, code: number): void {
+  const event = new KeyboardEvent("keydown", {
+    key: key,
+    code: key,
+    keyCode: code, // Included for legacy support
+    which: code, // Included for legacy support
+    bubbles: true,
+    cancelable: true,
+  });
+  document.dispatchEvent(event);
 }

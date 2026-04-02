@@ -1,4 +1,4 @@
-import { waitFor, log } from "./utils.js";
+import { waitFor, log, triggerKeyDown } from "./utils.js";
 import type { ExtensionCore } from "./types.js";
 
 export class BaseStrategy {
@@ -26,7 +26,11 @@ export class BaseStrategy {
 
   menuDown(): void {
     const items = this.core.mainMenuItems;
-    if (items && items.length > 0 && this.core.mainMenuItemsIndex < items.length - 1) {
+    if (
+      items &&
+      items.length > 0 &&
+      this.core.mainMenuItemsIndex < items.length - 1
+    ) {
       const item = items[++this.core.mainMenuItemsIndex];
       if (item) item.click();
     }
@@ -45,9 +49,11 @@ export class BaseStrategy {
   }
 
   setNavMode(): void {
+    log.info(`Current active element: ${document.activeElement}`);
     setTimeout(() => {
-      (document.activeElement as HTMLElement)?.blur();
+      document.activeElement?.blur();
     }, 0);
+    log.info(`Current active element: ${document.activeElement}`);
     log.info("setNavMode");
   }
 
@@ -56,6 +62,7 @@ export class BaseStrategy {
   }
 
   setVisualLineMode(): void {
+    document.activeElement?.select();
     log.info("setVisualLineMode");
   }
 
@@ -112,10 +119,16 @@ export class YouTubeStrategy extends BaseStrategy {
     });
   }
 
-  override focusMainItem(i: number, _j: number | undefined = undefined, _scroll: boolean = true): void {
+  override focusMainItem(
+    i: number,
+    _j: number | undefined = undefined,
+    _scroll: boolean = true,
+  ): void {
     const items = this.core.mainItems;
     if (!items || !items[i]) return;
-    const newItem = items[i].querySelector("yt-touch-feedback-shape") as HTMLElement;
+    const newItem = items[i].querySelector(
+      "yt-touch-feedback-shape",
+    ) as HTMLElement;
     if (newItem) {
       newItem.classList.add("yt-spec-touch-feedback-shape--hovered");
     }
@@ -160,7 +173,9 @@ export class GoogleStrategy extends BaseStrategy {
         "div[role='listitem'] a[aria-disabled='true']",
       );
       if (currentMenuItem) {
-        const num = Array.from(this.core.mainMenuItems).indexOf(currentMenuItem as unknown as HTMLElement);
+        const num = Array.from(this.core.mainMenuItems).indexOf(
+          currentMenuItem as unknown as HTMLElement,
+        );
         this.core.mainMenuItemsIndex = num >= 0 ? num : 0;
       }
     });
@@ -169,21 +184,29 @@ export class GoogleStrategy extends BaseStrategy {
   override openLink(): void {
     const current = this.core.mainItems[this.core.mainItemsIndex];
     if (!current) return;
-    const innerLink = current.querySelector("span a") as HTMLAnchorElement | null;
+    const innerLink = current.querySelector(
+      "span a",
+    ) as HTMLAnchorElement | null;
     if (innerLink) innerLink.click();
   }
 
   override openLinkInNewTab(): void {
     const current = this.core.mainItems[this.core.mainItemsIndex];
     if (!current) return;
-    const innerLink = current.querySelector("span a") as HTMLAnchorElement | null;
+    const innerLink = current.querySelector(
+      "span a",
+    ) as HTMLAnchorElement | null;
     if (innerLink) {
       window.open(innerLink.href, "_blank")?.blur();
       window.focus();
     }
   }
 
-  override focusMainItem(i: number, _j: number | undefined = undefined, scroll: boolean = true): void {
+  override focusMainItem(
+    i: number,
+    _j: number | undefined = undefined,
+    scroll: boolean = true,
+  ): void {
     const items = this.core.mainItems;
     if (!items || !items[i]) return;
 
@@ -232,7 +255,9 @@ export class FacebookMessages extends BaseStrategy {
 
     waitFor("div[aria-label='Chats'] a[href^='/messages/']", () => {
       this.menuItems = Array.from(
-        document.querySelectorAll("div[aria-label='Chats'] a[href^='/messages/']"),
+        document.querySelectorAll(
+          "div[aria-label='Chats'] a[href^='/messages/']",
+        ),
       ) as HTMLElement[];
       const item = this.menuItems[this.menuIndex];
       if (item) {
@@ -245,7 +270,9 @@ export class FacebookMessages extends BaseStrategy {
     super.menuDown();
     const item = this.menuItems[this.menuIndex];
     if (item) {
-      (item as unknown as { scrollIntoViewIfNeeded: (arg: boolean) => void }).scrollIntoViewIfNeeded(true);
+      (
+        item as unknown as { scrollIntoViewIfNeeded: (arg: boolean) => void }
+      ).scrollIntoViewIfNeeded(true);
     }
   }
 
@@ -253,7 +280,9 @@ export class FacebookMessages extends BaseStrategy {
     super.menuUp();
     const item = this.menuItems[this.menuIndex];
     if (item) {
-      (item as unknown as { scrollIntoViewIfNeeded: (arg: boolean) => void }).scrollIntoViewIfNeeded(true);
+      (
+        item as unknown as { scrollIntoViewIfNeeded: (arg: boolean) => void }
+      ).scrollIntoViewIfNeeded(true);
     }
   }
 }

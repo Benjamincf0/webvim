@@ -1,4 +1,4 @@
-import { waitForElement } from "./utils.js";
+import { log, waitForElement } from "./utils.js";
 import type { ExtensionCore } from "./types.js";
 
 export class UIManager {
@@ -88,6 +88,7 @@ export class UIManager {
 
     let configJSON: unknown = null;
     try {
+      log.info(this.textarea.value);
       configJSON = JSON.parse(this.textarea.value);
     } catch (error) {
       console.error("JSON parsing error:", error);

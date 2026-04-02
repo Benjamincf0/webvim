@@ -1,4 +1,9 @@
-import { generateEffectiveKeymap, isUserTyping, log } from "./utils.js";
+import {
+  triggerKeyDown,
+  generateEffectiveKeymap,
+  isUserTyping,
+  log,
+} from "./utils.ts";
 import { StrategyFactory } from "./strategy.js";
 import { UIManager } from "./uimanager.js";
 import { KeyTrie } from "./trie.js";
@@ -25,15 +30,23 @@ export class ExtensionCore {
     this.mainMenuItems = [];
     this.mainMenuItemsIndex = 0;
 
-    this.UIManager = new UIManager(this as unknown as import("./types.js").ExtensionCore);
+    this.UIManager = new UIManager(
+      this as unknown as import("./types.js").ExtensionCore,
+    );
     this.UIManager.initUI();
 
     this.currentMode = "NAV_MODE";
-    this.inputManager = new InputManager(this as unknown as import("./types.js").ExtensionCore, null);
+    this.inputManager = new InputManager(
+      this as unknown as import("./types.js").ExtensionCore,
+      null,
+    );
     this.setMode(this.currentMode);
 
     document.addEventListener("DOMContentLoaded", () => {
-      this.strategy = StrategyFactory.get(this as unknown as import("./types.js").ExtensionCore, hostname);
+      this.strategy = StrategyFactory.get(
+        this as unknown as import("./types.js").ExtensionCore,
+        hostname,
+      );
     });
 
     document.addEventListener("focusin", () => {
@@ -121,6 +134,7 @@ export class ExtensionCore {
       case "set_VISUAL_LINE_MODE":
         this.setMode("VISUAL_LINE_MODE");
         this.strategy.setVisualLineMode();
+        return true;
         break;
       case "set_VISUAL_CHAR_MODE":
         this.setMode("VISUAL_LINE_MODE");
@@ -136,23 +150,12 @@ export class ExtensionCore {
         this.strategy.deleteChar();
         break;
       case "arrow_down": {
-        const event = new KeyboardEvent("keydown", {
-          key: "ArrowDown",
-          code: "ArrowDown",
-          bubbles: true,
-          cancelable: true,
-        });
-        document.dispatchEvent(event);
+        log.info("arrow_down");
+        triggerKeyDown("ArrowDown", 40);
         break;
       }
       case "arrow_up": {
-        const event = new KeyboardEvent("keydown", {
-          key: "ArrowUp",
-          code: "ArrowUp",
-          bubbles: true,
-          cancelable: true,
-        });
-        document.dispatchEvent(event);
+        triggerKeyDown("ArrowUp", 38);
         break;
       }
       default:
