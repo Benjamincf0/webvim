@@ -15,28 +15,6 @@ export const waitFor = (
   o
 );
 
-export function waitForElement(selector: string): Promise<Element | null> {
-  const element = document.querySelector(selector);
-  if (element) {
-    return Promise.resolve(element);
-  }
-
-  return new Promise((resolve) => {
-    const observer = new MutationObserver(() => {
-      const element = document.querySelector(selector);
-      if (element) {
-        observer.disconnect();
-        resolve(element);
-      }
-    });
-
-    observer.observe(document, {
-      childList: true,
-      subtree: true,
-    });
-  });
-}
-
 export const log = {
   info: (...args: unknown[]) => console.log("[BetterWeb]", ...args),
   warn: (...args: unknown[]) => console.warn("[BetterWeb]", ...args),

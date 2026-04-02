@@ -182,7 +182,7 @@ export class UIManager {
 
 ## Patterns & Best Practices
 
-1. **MutationObserver for dynamic content**: Use `waitFor` or `waitForElement` utilities (utils.ts) for elements that load asynchronously
+1. **MutationObserver for dynamic content**: Use `waitFor` utility (utils.ts) for elements that load asynchronously
 
 2. **Key normalization**: Use `normalizeKey()` to handle cross-platform modifiers (mod = Cmd on Mac, Ctrl on Windows)
 

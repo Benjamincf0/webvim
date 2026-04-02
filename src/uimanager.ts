@@ -1,4 +1,4 @@
-import { log, waitForElement } from "./utils.js";
+import { log, waitFor } from "./utils.js";
 import type { ExtensionCore } from "./types.js";
 
 export class UIManager {
@@ -12,7 +12,9 @@ export class UIManager {
   }
 
   async initUI(): Promise<void> {
-    await waitForElement("body");
+    await new Promise<void>((resolve) => {
+      waitFor("body", () => resolve());
+    });
 
     this.box = document.createElement("div");
     const h1 = document.createElement("h1");
