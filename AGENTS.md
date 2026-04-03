@@ -204,7 +204,7 @@ export class UIManager {
 ├── utils.ts            # Utilities (waitFor, log, normalizeKey)
 ├── trie.ts             # KeyTrie - key sequence matching
 ├── InputManager.ts     # Keyboard input handling
-├── uimanager.ts        # UI overlay management
+├── uimanager.tsx        # UI overlay management
 ├── strategy.ts         # Site strategies & factory
 ├── core.ts             # ExtensionCore - main controller
 └── content.ts          # Content script entry point

@@ -1,5 +1,13 @@
+import { createRoot } from "react-dom/client"
 import { log, waitFor } from "./utils.js";
-import type { ExtensionCore } from "./types.js";
+import { ExtensionCore } from "./core.ts";
+import { useState } from "react";
+import './index.css'
+
+const ExtensionModal = () => {
+  // const [modalIsOpen, setModalIsOpen] = useState(true);
+  return <div className="fixed top-[10px] right-[10px] z-[21474836479] h-[100px] bg-white text-white p-[25px] rounded-[10px] w-[80vw] font-sans">{"asdfasdfas" + console.log("HELLOO OWEKJDKJF:SDLKJ WE IN THE COMPONENT")}<h1>REACT COMPONENT</h1></div>
+}
 
 export class UIManager {
   core: ExtensionCore;
@@ -68,6 +76,8 @@ export class UIManager {
     document.body.appendChild(this.host);
     const shadow = this.host.attachShadow({ mode: "closed" });
     shadow.appendChild(this.box);
+    const root = createRoot(this.host);
+    root.render(<ExtensionModal />);
 
     document.body.addEventListener("click", (e) => {
       if (!this.host.contains(e.target as Node)) {

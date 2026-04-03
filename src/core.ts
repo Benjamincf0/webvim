@@ -4,11 +4,12 @@ import {
   isUserTyping,
   log,
 } from "./utils.ts";
+
 import { StrategyFactory } from "./strategy.js";
-import { UIManager } from "./uimanager.js";
+import { UIManager } from "./uimanager.tsx";
 import { KeyTrie } from "./trie.js";
 import { InputManager } from "./InputManager.js";
-import type { Mode, UserConfig, CommandId } from "./types.js";
+import type { Mode, UserConfig, CommandId } from "./types.ts";
 
 export class ExtensionCore {
   config: UserConfig;
@@ -30,23 +31,15 @@ export class ExtensionCore {
     this.mainMenuItems = [];
     this.mainMenuItemsIndex = 0;
 
-    this.UIManager = new UIManager(
-      this as unknown as import("./types.js").ExtensionCore,
-    );
+    this.UIManager = new UIManager(this);
     this.UIManager.initUI();
 
     this.currentMode = "NAV_MODE";
-    this.inputManager = new InputManager(
-      this as unknown as import("./types.js").ExtensionCore,
-      null,
-    );
+    this.inputManager = new InputManager(this, null);
     this.setMode(this.currentMode);
 
     document.addEventListener("DOMContentLoaded", () => {
-      this.strategy = StrategyFactory.get(
-        this as unknown as import("./types.js").ExtensionCore,
-        hostname,
-      );
+      this.strategy = StrategyFactory.get(this, hostname);
     });
 
     document.addEventListener("focusin", () => {
