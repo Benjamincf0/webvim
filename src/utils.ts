@@ -1,19 +1,24 @@
 import type { UserConfig, Mode, KeymapConfig } from "./types.js";
 
-export const waitFor = (
-  s: string,
-  c: (el: Element) => void,
-  o: MutationObserver = new MutationObserver(() => {
+export const waitFor = (s: string, c: (el: Element) => void): MutationObserver => {
+  const o = new MutationObserver(() => {
     const e = document.querySelector(s);
     if (e) {
       o.disconnect();
       c(e);
     }
-  }),
-): MutationObserver => (
-  o.observe(document.body, { childList: true, subtree: true }),
-  o
-);
+  });
+
+  // The element may already exist (no mutation would ever fire), and at
+  // document_start <body> is null, so observe the root element instead
+  const existing = document.querySelector(s);
+  if (existing) {
+    c(existing);
+    return o;
+  }
+  o.observe(document.documentElement, { childList: true, subtree: true });
+  return o;
+};
 
 export const log = {
   info: (...args: unknown[]) => console.log("[BetterWeb]", ...args),

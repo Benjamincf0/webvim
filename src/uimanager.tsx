@@ -1,22 +1,162 @@
-import { createRoot } from "react-dom/client"
+import { useEffect, useRef, useState } from "react";
+import { createRoot } from "react-dom/client";
+import type { Root } from "react-dom/client";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactElement } from "react";
 import { log, waitFor } from "./utils.js";
 import { ExtensionCore } from "./core.ts";
-import { useState } from "react";
+import type { UserConfig } from "./types.ts";
 import styles from "./index.css?inline";
 
-const ExtensionModal = () => {
-  // const [modalIsOpen, setModalIsOpen] = useState(true);
-  return <div className="fixed top-[10px] right-[10px] z-[21474836479] h-[100px] bg-white text-white p-[25px] rounded-[10px] w-[80vw] font-sans">{"asdfasdfas" + console.log("HELLOO OWEKJDKJF:SDLKJ WE IN THE COMPONENT")}<h1>REACT COMPONENT</h1></div>
+/** ===========================================================================
+ * CONFIG MODAL (React)
+ * ============================================================================ */
+
+type ConfigModalProps = {
+  config: UserConfig;
+  onClose: () => void;
+  onSave: (config: UserConfig) => Promise<void>;
+};
+
+// Mounted fresh on every open, so the draft starts as the live config on the very first render
+function ConfigModal({ config, onClose, onSave }: ConfigModalProps): ReactElement {
+  const [draft, setDraft] = useState<string>(() => JSON.stringify(config, null, 2));
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState<boolean>(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Focus after the opening keystroke has finished, or its character gets typed into the editor
+  useEffect(() => {
+    const id = setTimeout(() => textareaRef.current?.focus(), 0);
+    return () => clearTimeout(id);
+  }, []);
+
+  async function save(): Promise<void> {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(draft);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Invalid JSON");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(parsed as UserConfig);
+      onClose();
+    } catch (e) {
+      setError("Couldn't save config");
+      log.error(e);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleKeyDown(e: ReactKeyboardEvent<HTMLDivElement>): void {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onClose();
+    } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      void save();
+    } else if (e.key === "Tab" && e.target === textareaRef.current) {
+      // Insert two spaces instead of moving focus out of the editor
+      e.preventDefault();
+      const el = e.currentTarget.querySelector("textarea");
+      if (!el) return;
+      const { selectionStart, selectionEnd } = el;
+      const next = draft.slice(0, selectionStart) + "  " + draft.slice(selectionEnd);
+      setDraft(next);
+      requestAnimationFrame(() => el.setSelectionRange(selectionStart + 2, selectionStart + 2));
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[2147483647] flex items-center justify-center bg-black/50 p-4 font-sans text-[14px] leading-normal antialiased"
+      onClick={onClose}
+      onKeyDown={handleKeyDown}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="bw-title"
+        className="flex max-h-[85vh] w-full max-w-[640px] flex-col overflow-hidden rounded-xl border border-zinc-700 bg-zinc-900 text-zinc-100 [box-shadow:0_24px_64px_rgba(0,0,0,0.5)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="flex items-start justify-between gap-4 border-b border-zinc-800 px-5 py-4">
+          <div>
+            <h1 id="bw-title" className="m-0 text-[16px] font-semibold">
+              BetterWeb shortcuts
+            </h1>
+            <p className="m-0 mt-1 text-[13px] text-zinc-400">
+              Edit your keymap as JSON. Changes apply immediately.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="cursor-pointer rounded-md border-0 bg-transparent px-2 py-1 text-[18px] leading-none text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+          >
+            ×
+          </button>
+        </header>
+
+        <div className="flex min-h-0 flex-1 flex-col gap-2 px-5 py-4">
+          <textarea
+            ref={textareaRef}
+            value={draft}
+            spellCheck={false}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              if (error) setError(null);
+            }}
+            className={`block h-[360px] min-h-[160px] w-full resize-y rounded-lg border bg-zinc-950 p-3 font-mono text-[12.5px] leading-relaxed text-zinc-100 outline-none focus:border-blue-500 ${
+              error ? "border-red-500" : "border-zinc-700"
+            }`}
+          />
+          {error && <p className="m-0 font-mono text-[12px] text-red-400">{error}</p>}
+        </div>
+
+        <footer className="flex items-center justify-between gap-3 border-t border-zinc-800 px-5 py-3">
+          <span className="text-[12px] text-zinc-500">
+            <kbd className="font-mono">Esc</kbd> to close · <kbd className="font-mono">⌘/Ctrl+Enter</kbd> to save
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="cursor-pointer rounded-md border border-zinc-700 bg-transparent px-3 py-1.5 text-[13px] text-zinc-200 hover:bg-zinc-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void save()}
+              disabled={saving}
+              className="cursor-pointer rounded-md border-0 bg-blue-600 px-3 py-1.5 text-[13px] font-medium text-white hover:bg-blue-500 disabled:cursor-default disabled:opacity-60"
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </footer>
+      </div>
+    </div>
+  );
 }
+
+/** ===========================================================================
+ * UI MANAGER
+ * ============================================================================ */
 
 export class UIManager {
   core: ExtensionCore;
-  box!: HTMLDivElement;
-  textarea!: HTMLTextAreaElement;
   host!: HTMLDivElement;
+  root!: Root;
+  isOpen: boolean;
 
   constructor(core: ExtensionCore) {
     this.core = core;
+    this.isOpen = false;
   }
 
   async initUI(): Promise<void> {
@@ -24,101 +164,46 @@ export class UIManager {
       waitFor("body", () => resolve());
     });
 
-    this.box = document.createElement("div");
-    const h1 = document.createElement("h1");
-    h1.textContent = "Web Shortcuts Extension";
-
-    const h2 = document.createElement("h2");
-    h2.textContent = "Add your configurations here";
-
-    const form = document.createElement("form");
-
-    this.textarea = document.createElement("textarea");
-    this.textarea.id = "asdf";
-
-    const button = document.createElement("button");
-    button.type = "submit";
-    button.textContent = "Submit";
-    button.addEventListener("click", (e) => {
-      this.handleSubmitForm(e);
-    });
-
-    form.appendChild(this.textarea);
-    form.appendChild(button);
-
-    this.box.append(h1, h2, form);
-    Object.assign(this.box.style, {
-      position: "fixed",
-      top: "10px",
-      right: "10px",
-      zIndex: "2147483647",
-      background: "#000000",
-      color: "#ffffff",
-      padding: "25px",
-      borderRadius: "10px",
-      width: "80vw",
-      font: "sans-serif",
-    });
-
-    Object.assign(this.textarea.style, {
-      display: "block",
-      height: "150px",
-      width: "100%",
-    });
-
-    Object.assign(button.style, {
-      width: "100%",
-      height: "45px",
-    });
-
     this.host = document.createElement("div");
-    this.hideUI();
     document.body.appendChild(this.host);
-    const shadow = this.host.attachShadow({ mode: "closed" });
-    shadow.appendChild(this.box);
+    const shadow = this.host.attachShadow({ mode: "open" });
 
     // Tailwind styles must live inside the shadow root to apply to the React tree
     const style = document.createElement("style");
     style.textContent = styles;
     shadow.appendChild(style);
 
-    const reactContainer = document.createElement("div");
-    shadow.appendChild(reactContainer);
-    const root = createRoot(reactContainer);
-    root.render(<ExtensionModal />);
+    const container = document.createElement("div");
+    shadow.appendChild(container);
+    this.root = createRoot(container);
+    this.render();
+  }
 
-    document.body.addEventListener("click", (e) => {
-      if (!this.host.contains(e.target as Node)) {
-        this.hideUI();
-      }
-    });
+  render(): void {
+    this.root?.render(
+      this.isOpen ? (
+        <ConfigModal
+          config={this.core.config}
+          onClose={() => this.hideUI()}
+          onSave={(config) => this.saveConfig(config)}
+        />
+      ) : null,
+    );
   }
 
   hideUI(): void {
-    this.host.style.display = "none";
+    this.isOpen = false;
+    this.render();
   }
 
   showUI(): void {
-    this.textarea.value = JSON.stringify(this.core.config, null, "\t");
-    this.host.style.display = "inline-block";
+    this.isOpen = true;
+    this.render();
   }
 
-  async handleSubmitForm(e: Event): Promise<void> {
-    e.preventDefault();
-
-    let configJSON: unknown = null;
-    try {
-      log.info(this.textarea.value);
-      configJSON = JSON.parse(this.textarea.value);
-    } catch (error) {
-      console.error("JSON parsing error:", error);
-      return;
-    }
-
-    await window.chrome.storage.local.set({
-      configJSON: configJSON,
-    });
-
-    this.core.updateConfig(configJSON as never);
+  async saveConfig(config: UserConfig): Promise<void> {
+    await window.chrome.storage.local.set({ configJSON: config });
+    this.core.updateConfig(config);
+    log.info("Config saved");
   }
 }

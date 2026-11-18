@@ -69,6 +69,9 @@ export class ExtensionCore {
   executeCommand(commandId: CommandId, event: Event): void {
     switch (commandId) {
       case "open_extension_config":
+        // Swallow the key so it isn't typed into the editor that's about to get focus
+        event.preventDefault();
+        event.stopPropagation();
         this.UIManager.showUI();
         break;
       case "set_NORMAL_MODE":
