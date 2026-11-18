@@ -2,7 +2,7 @@ import { createRoot } from "react-dom/client"
 import { log, waitFor } from "./utils.js";
 import { ExtensionCore } from "./core.ts";
 import { useState } from "react";
-import './index.css'
+import styles from "./index.css?inline";
 
 const ExtensionModal = () => {
   // const [modalIsOpen, setModalIsOpen] = useState(true);
@@ -76,7 +76,15 @@ export class UIManager {
     document.body.appendChild(this.host);
     const shadow = this.host.attachShadow({ mode: "closed" });
     shadow.appendChild(this.box);
-    const root = createRoot(this.host);
+
+    // Tailwind styles must live inside the shadow root to apply to the React tree
+    const style = document.createElement("style");
+    style.textContent = styles;
+    shadow.appendChild(style);
+
+    const reactContainer = document.createElement("div");
+    shadow.appendChild(reactContainer);
+    const root = createRoot(reactContainer);
     root.render(<ExtensionModal />);
 
     document.body.addEventListener("click", (e) => {

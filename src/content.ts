@@ -4,7 +4,7 @@ import type { UserConfig } from "./types.js";
 const USER_CONFIG: UserConfig = {
   global: {
     NAV_MODE: {
-      "mod+shift+e o": "open_extension_config",
+      "ctrl+g e": "open_extension_config",
       "mod+shift+e n": "set_NORMAL_MODE",
       "shift+j": "scroll_down",
       "shift+k": "scroll_up",
