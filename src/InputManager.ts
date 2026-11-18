@@ -20,6 +20,9 @@ export class InputManager {
   }
 
   handleKeyDown(event: KeyboardEvent): void {
+    // The config modal handles its own keys; don't run page shortcuts while it's open
+    if (this.core.UIManager.isOpen) return;
+
     const keyString = normalizeKey(event);
     log.info(keyString);
     if (!keyString) return;
