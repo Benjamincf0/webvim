@@ -60,10 +60,11 @@ const USER_CONFIG: UserConfig = {
 };
 
 async function main(): Promise<void> {
-  const result = await window.chrome.storage.local.get("configJSON");
+  const result = await window.chrome.storage.local.get(["configJSON", "enabled"]);
   const configJSON = result.configJSON as UserConfig | undefined;
+  const enabled = result.enabled !== false; // default to enabled
   console.log("Applying config:", configJSON);
-  new ExtensionCore(configJSON || USER_CONFIG, window.location.hostname);
+  new ExtensionCore(configJSON || USER_CONFIG, window.location.hostname, enabled);
 }
 
 main();

@@ -21,11 +21,13 @@ export class ExtensionCore {
   mainItemsIndex: number;
   mainMenuItems: HTMLElement[];
   mainMenuItemsIndex: number;
+  enabled: boolean;
   private strategy!: ReturnType<typeof StrategyFactory.get>;
 
-  constructor(config: UserConfig, hostname: string) {
+  constructor(config: UserConfig, hostname: string, enabled: boolean = true) {
     this.config = config;
     this.hostname = hostname;
+    this.enabled = enabled;
     this.mainItems = [];
     this.mainItemsIndex = 0;
     this.mainMenuItems = [];
@@ -38,16 +40,33 @@ export class ExtensionCore {
     this.inputManager = new InputManager(this, null);
     this.setMode(this.currentMode);
 
-    document.addEventListener("DOMContentLoaded", () => {
-      this.strategy = StrategyFactory.get(this, hostname);
-    });
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", () => this.initStrategy());
+    } else {
+      this.initStrategy();
+    }
 
     document.addEventListener("focusin", () => {
+      if (!this.enabled) return;
       if (isUserTyping(document.activeElement)) {
         this.setMode("INSERT_MODE");
         this.strategy.setInsertMode();
       }
     });
+  }
+
+  // Strategies touch the page on creation (e.g. highlighting items), so skip them while disabled
+  initStrategy(): void {
+    if (this.strategy || !this.enabled) return;
+    this.strategy = StrategyFactory.get(this, this.hostname);
+  }
+
+  async setEnabled(enabled: boolean): Promise<void> {
+    this.enabled = enabled;
+    this.currentMode = "NAV_MODE";
+    this.updateConfig(this.config);
+    if (enabled && document.readyState !== "loading") this.initStrategy();
+    await window.chrome.storage.local.set({ enabled });
   }
 
   setMode(mode: Mode): void {
@@ -57,13 +76,17 @@ export class ExtensionCore {
 
   updateConfig(newConfig: UserConfig): void {
     this.config = newConfig;
-    const newEffectiveKeymap = generateEffectiveKeymap(
-      newConfig,
-      this.hostname,
-      this.currentMode,
-    );
-    const newTrie = new KeyTrie(newEffectiveKeymap);
-    this.inputManager.trie = newTrie;
+    let keymap = generateEffectiveKeymap(newConfig, this.hostname, this.currentMode);
+
+    // While disabled, only the shortcut that opens the modal stays active (from any mode)
+    if (!this.enabled) {
+      const navKeymap = generateEffectiveKeymap(newConfig, this.hostname, "NAV_MODE");
+      keymap = Object.fromEntries(
+        Object.entries(navKeymap).filter(([, cmd]) => cmd === "open_extension_config"),
+      );
+    }
+
+    this.inputManager.trie = new KeyTrie(keymap);
   }
 
   executeCommand(commandId: CommandId, event: Event): void {

@@ -13,12 +13,15 @@ import styles from "./index.css?inline";
 
 type ConfigModalProps = {
   config: UserConfig;
+  enabled: boolean;
+  onToggleEnabled: (enabled: boolean) => Promise<void>;
   onClose: () => void;
   onSave: (config: UserConfig) => Promise<void>;
 };
 
 // Mounted fresh on every open, so the draft starts as the live config on the very first render
-function ConfigModal({ config, onClose, onSave }: ConfigModalProps): ReactElement {
+function ConfigModal({ config, enabled: initialEnabled, onToggleEnabled, onClose, onSave }: ConfigModalProps): ReactElement {
+  const [enabled, setEnabled] = useState<boolean>(initialEnabled);
   const [draft, setDraft] = useState<string>(() => JSON.stringify(config, null, 2));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<boolean>(false);
@@ -100,6 +103,39 @@ function ConfigModal({ config, onClose, onSave }: ConfigModalProps): ReactElemen
             ×
           </button>
         </header>
+
+        <div className="flex items-center justify-between gap-4 border-b border-zinc-800 px-5 py-3">
+          <div>
+            <p className="m-0 text-[13px] font-medium">Enable shortcuts</p>
+            <p className="m-0 mt-0.5 text-[12px] text-zinc-400">
+              When off, only the shortcut that opens this window works.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            aria-label="Enable shortcuts"
+            onClick={() => {
+              const next = !enabled;
+              setEnabled(next);
+              onToggleEnabled(next).catch((e: unknown) => {
+                setEnabled(!next);
+                log.error(e);
+              });
+            }}
+            className={`relative h-[22px] w-[40px] shrink-0 cursor-pointer rounded-full border-0 p-0 transition-colors ${
+              enabled ? "bg-blue-600" : "bg-zinc-700"
+            }`}
+          >
+            {/* margin instead of translate: Tailwind's transform vars don't initialise inside shadow DOM */}
+            <span
+              className={`block h-[18px] w-[18px] rounded-full bg-white transition-all ${
+                enabled ? "ml-[20px]" : "ml-[2px]"
+              }`}
+            />
+          </button>
+        </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-2 px-5 py-4">
           <textarea
@@ -184,6 +220,8 @@ export class UIManager {
       this.isOpen ? (
         <ConfigModal
           config={this.core.config}
+          enabled={this.core.enabled}
+          onToggleEnabled={(enabled) => this.core.setEnabled(enabled)}
           onClose={() => this.hideUI()}
           onSave={(config) => this.saveConfig(config)}
         />

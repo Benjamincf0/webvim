@@ -1,1 +1,9 @@
 @import "tailwindcss";
+
+/* Tailwind v4 initialises some variables via @property, which doesn't apply inside
+   shadow DOM (where the modal lives), so set the ones we rely on by hand */
+@layer base {
+  *, ::before, ::after {
+    --tw-border-style: solid;
+  }
+}
