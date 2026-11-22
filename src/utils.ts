@@ -51,19 +51,29 @@ export function normalizeKey(event: KeyboardEvent): string {
   return parts.join("+");
 }
 
+// Identifies one shortcut for the list of shortcuts the user switched off in the menu
+export function shortcutId(site: string, mode: Mode, keys: string): string {
+  return `${site}|${mode}|${keys}`;
+}
+
 export function generateEffectiveKeymap(
   config: UserConfig,
   hostname: string,
   currentMode: Mode,
+  disabled: Set<string> = new Set(),
 ): KeymapConfig {
-  let effectiveMap: KeymapConfig = { ...config.global[currentMode] };
+  // Disabled site shortcuts are dropped before merging, so the global binding for that key applies again
+  const enabledOnly = (site: string, keymap: KeymapConfig | undefined): KeymapConfig =>
+    Object.fromEntries(
+      Object.entries(keymap ?? {}).filter(([keys]) => !disabled.has(shortcutId(site, currentMode, keys))),
+    );
+
+  let effectiveMap: KeymapConfig = enabledOnly("global", config.global?.[currentMode]);
   const siteKey = Object.keys(config).find((site) => hostname.includes(site));
 
-  if (siteKey && config[siteKey]) {
+  if (siteKey && siteKey !== "global" && config[siteKey]) {
     const siteConfig = config[siteKey] as Record<Mode, KeymapConfig>;
-    if (siteConfig[currentMode]) {
-      effectiveMap = { ...effectiveMap, ...siteConfig[currentMode] };
-    }
+    effectiveMap = { ...effectiveMap, ...enabledOnly(siteKey, siteConfig[currentMode]) };
   }
   log.info(effectiveMap);
   return effectiveMap;

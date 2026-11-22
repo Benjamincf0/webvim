@@ -22,12 +22,14 @@ export class ExtensionCore {
   mainMenuItems: HTMLElement[];
   mainMenuItemsIndex: number;
   enabled: boolean;
+  disabledShortcuts: Set<string>;
   private strategy!: ReturnType<typeof StrategyFactory.get>;
 
-  constructor(config: UserConfig, hostname: string, enabled: boolean = true) {
+  constructor(config: UserConfig, hostname: string, enabled: boolean = true, disabledShortcuts: string[] = []) {
     this.config = config;
     this.hostname = hostname;
     this.enabled = enabled;
+    this.disabledShortcuts = new Set(disabledShortcuts);
     this.mainItems = [];
     this.mainItemsIndex = 0;
     this.mainMenuItems = [];
@@ -74,13 +76,14 @@ export class ExtensionCore {
     this.updateConfig(this.config);
   }
 
-  updateConfig(newConfig: UserConfig): void {
+  updateConfig(newConfig: UserConfig, disabledShortcuts?: string[]): void {
     this.config = newConfig;
-    let keymap = generateEffectiveKeymap(newConfig, this.hostname, this.currentMode);
+    if (disabledShortcuts) this.disabledShortcuts = new Set(disabledShortcuts);
+    let keymap = generateEffectiveKeymap(newConfig, this.hostname, this.currentMode, this.disabledShortcuts);
 
     // While disabled, only the shortcut that opens the modal stays active (from any mode)
     if (!this.enabled) {
-      const navKeymap = generateEffectiveKeymap(newConfig, this.hostname, "NAV_MODE");
+      const navKeymap = generateEffectiveKeymap(newConfig, this.hostname, "NAV_MODE", this.disabledShortcuts);
       keymap = Object.fromEntries(
         Object.entries(navKeymap).filter(([, cmd]) => cmd === "open_extension_config"),
       );
