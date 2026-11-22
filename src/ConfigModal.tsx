@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactElement } from "react";
 import { log, matchSite, normalizeKey } from "./utils.ts";
+import { Toggle } from "./Toggle.tsx";
+import { TimeLimitsPanel } from "./TimeLimitsPanel.tsx";
 import { commandGroups, commandInfo, modeLabels, modes } from "./commands.ts";
 import {
   emptySite,
@@ -19,35 +21,6 @@ import type { CommandId, Mode, ShortcutSettings, UserConfig } from "./types.ts";
 /** ===========================================================================
  * SMALL CONTROLS
  * ============================================================================ */
-
-type ToggleProps = {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  label: string;
-  small?: boolean;
-};
-
-function Toggle({ checked, onChange, label, small = false }: ToggleProps): ReactElement {
-  const track = small ? "h-[16px] w-[28px]" : "h-[22px] w-[40px]";
-  const knob = small ? "h-[12px] w-[12px]" : "h-[18px] w-[18px]";
-  const on = small ? "ml-[14px]" : "ml-[20px]";
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      title={label}
-      onClick={() => onChange(!checked)}
-      className={`relative ${track} shrink-0 cursor-pointer rounded-full border-0 p-0 transition-colors ${
-        checked ? "bg-blue-600" : "bg-zinc-700"
-      }`}
-    >
-      {/* margin instead of translate: Tailwind's transform vars don't initialise inside shadow DOM */}
-      <span className={`block ${knob} rounded-full bg-white transition-all ${checked ? on : "ml-[2px]"}`} />
-    </button>
-  );
-}
 
 type KeyInputProps = {
   value: string;
@@ -382,6 +355,7 @@ export function ConfigModal(props: ConfigModalProps): ReactElement {
   const [selected, setSelected] = useState<string>(
     () => matchSite(Object.keys(config), hostname) ?? "global",
   );
+  const [tab, setTab] = useState<"shortcuts" | "limits">("shortcuts");
   const [view, setView] = useState<"list" | "json">("list");
   const [jsonDraft, setJsonDraft] = useState<string>("");
   const [newSite, setNewSite] = useState<string>("");
@@ -513,7 +487,7 @@ export function ConfigModal(props: ConfigModalProps): ReactElement {
     if (e.key === "Escape") {
       e.preventDefault();
       requestClose();
-    } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+    } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && tab === "shortcuts") {
       e.preventDefault();
       void save();
     }
@@ -535,9 +509,27 @@ export function ConfigModal(props: ConfigModalProps): ReactElement {
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center justify-between gap-4 border-b border-zinc-800 px-5 py-3">
-          <h1 id="bw-title" className="m-0 text-[16px] font-semibold">
-            BetterWeb shortcuts
-          </h1>
+          <div className="flex items-center gap-4">
+            <h1 id="bw-title" className="m-0 text-[16px] font-semibold">
+              BetterWeb
+            </h1>
+            <div role="tablist" className="flex gap-1 rounded-lg bg-zinc-950 p-0.5">
+              {(["shortcuts", "limits"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === t}
+                  onClick={() => setTab(t)}
+                  className={`cursor-pointer rounded-md border-0 px-3 py-1 text-[13px] ${
+                    tab === t ? "bg-zinc-800 text-zinc-100" : "bg-transparent text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  {t === "shortcuts" ? "Shortcuts" : "Time limits"}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="flex items-center gap-4">
             <label className="flex cursor-pointer items-center gap-2 text-[13px] text-zinc-300">
               Shortcuts enabled
@@ -564,146 +556,152 @@ export function ConfigModal(props: ConfigModalProps): ReactElement {
           </div>
         </header>
 
-        {view === "list" ? (
-          <div className="flex min-h-0 flex-1">
-            <nav className="flex w-[210px] shrink-0 flex-col border-r border-zinc-800 bg-zinc-950/40">
-              <ul className="m-0 min-h-0 flex-1 list-none overflow-y-auto p-2">
-                {sites.map((s) => {
-                  const count = modes.reduce((n, m) => n + s.modes[m].length, 0);
-                  const hasError = modes.some((m) => s.modes[m].some((r) => rowErrors.has(r.id)));
-                  const active = s.name === site?.name;
-                  return (
-                    <li key={s.name}>
-                      <button
-                        type="button"
-                        onClick={() => setSelected(s.name)}
-                        className={`flex w-full cursor-pointer items-center gap-2 rounded-md border-0 px-2.5 py-1.5 text-left text-[13px] ${
-                          active ? "bg-zinc-800 text-zinc-100" : "bg-transparent text-zinc-300 hover:bg-zinc-800/60"
-                        }`}
-                      >
-                        <span className="min-w-0 flex-1 truncate">{s.name === "global" ? "All sites" : s.name}</span>
-                        {s.name === currentSite && (
-                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" title="This site" />
-                        )}
-                        {!s.enabled && (
-                          <span className="shrink-0 rounded bg-zinc-800 px-1 text-[10px] uppercase text-zinc-400">off</span>
-                        )}
-                        {hasError && <span className="shrink-0 text-[12px] text-red-400">!</span>}
-                        <span className="shrink-0 text-[11px] text-zinc-500">{count}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-              <form
-                className="flex gap-1.5 border-t border-zinc-800 p-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  addSite();
-                }}
-              >
-                <input
-                  value={newSite}
-                  onChange={(e) => setNewSite(e.target.value)}
-                  placeholder={defaultNewSite || "example.com"}
-                  spellCheck={false}
-                  aria-label="Add site"
-                  className="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-zinc-500"
-                />
-                <button
-                  type="submit"
-                  title="Add site"
-                  className="cursor-pointer rounded-md border-0 bg-zinc-800 px-2 text-[13px] text-zinc-200 hover:bg-zinc-700"
-                >
-                  +
-                </button>
-              </form>
-            </nav>
-
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              {site && globalSite && (
-                <SitePanel
-                  site={site}
-                  global={globalSite}
-                  isCurrent={site.name === currentSite}
-                  errors={rowErrors}
-                  focusRowId={focusRowId}
-                  onChangeRow={(mode, id, patch) =>
-                    editMode(mode, (rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)))
-                  }
-                  onAddRow={addRow}
-                  onRemoveRow={(mode, id) => editMode(mode, (rows) => rows.filter((r) => r.id !== id))}
-                  onRemoveSite={() => removeSite(site.name)}
-                  onToggleSite={(on) => editSite(site.name, (s) => ({ ...s, enabled: on }))}
-                  onToggleInherited={(mode, keys, on) =>
-                    editSite(site.name, (s) => {
-                      const disabledGlobal = new Set(s.disabledGlobal);
-                      if (on) disabledGlobal.delete(inheritedKey(mode, keys));
-                      else disabledGlobal.add(inheritedKey(mode, keys));
-                      return { ...s, disabledGlobal };
-                    })
-                  }
-                />
-              )}
-            </div>
-          </div>
+        {tab === "limits" ? (
+          <TimeLimitsPanel />
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col px-5 py-4">
-            <textarea
-              value={jsonDraft}
-              spellCheck={false}
-              autoFocus
-              onChange={(e) => {
-                setJsonDraft(e.target.value);
-                setDirty(true);
-                setError(null);
-              }}
-              className="block min-h-0 w-full flex-1 resize-none rounded-lg border border-zinc-700 bg-zinc-950 p-3 font-mono text-[12.5px] leading-relaxed text-zinc-100 outline-none focus:border-blue-500"
-            />
-          </div>
-        )}
+          <>
+          {view === "list" ? (
+            <div className="flex min-h-0 flex-1">
+              <nav className="flex w-[210px] shrink-0 flex-col border-r border-zinc-800 bg-zinc-950/40">
+                <ul className="m-0 min-h-0 flex-1 list-none overflow-y-auto p-2">
+                  {sites.map((s) => {
+                    const count = modes.reduce((n, m) => n + s.modes[m].length, 0);
+                    const hasError = modes.some((m) => s.modes[m].some((r) => rowErrors.has(r.id)));
+                    const active = s.name === site?.name;
+                    return (
+                      <li key={s.name}>
+                        <button
+                          type="button"
+                          onClick={() => setSelected(s.name)}
+                          className={`flex w-full cursor-pointer items-center gap-2 rounded-md border-0 px-2.5 py-1.5 text-left text-[13px] ${
+                            active ? "bg-zinc-800 text-zinc-100" : "bg-transparent text-zinc-300 hover:bg-zinc-800/60"
+                          }`}
+                        >
+                          <span className="min-w-0 flex-1 truncate">{s.name === "global" ? "All sites" : s.name}</span>
+                          {s.name === currentSite && (
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" title="This site" />
+                          )}
+                          {!s.enabled && (
+                            <span className="shrink-0 rounded bg-zinc-800 px-1 text-[10px] uppercase text-zinc-400">off</span>
+                          )}
+                          {hasError && <span className="shrink-0 text-[12px] text-red-400">!</span>}
+                          <span className="shrink-0 text-[11px] text-zinc-500">{count}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <form
+                  className="flex gap-1.5 border-t border-zinc-800 p-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    addSite();
+                  }}
+                >
+                  <input
+                    value={newSite}
+                    onChange={(e) => setNewSite(e.target.value)}
+                    placeholder={defaultNewSite || "example.com"}
+                    spellCheck={false}
+                    aria-label="Add site"
+                    className="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-[12px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-zinc-500"
+                  />
+                  <button
+                    type="submit"
+                    title="Add site"
+                    className="cursor-pointer rounded-md border-0 bg-zinc-800 px-2 text-[13px] text-zinc-200 hover:bg-zinc-700"
+                  >
+                    +
+                  </button>
+                </form>
+              </nav>
 
-        {error && (
-          <p className="m-0 border-t border-red-500/30 bg-red-500/10 px-5 py-2 text-[12.5px] text-red-300">{error}</p>
-        )}
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {site && globalSite && (
+                  <SitePanel
+                    site={site}
+                    global={globalSite}
+                    isCurrent={site.name === currentSite}
+                    errors={rowErrors}
+                    focusRowId={focusRowId}
+                    onChangeRow={(mode, id, patch) =>
+                      editMode(mode, (rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)))
+                    }
+                    onAddRow={addRow}
+                    onRemoveRow={(mode, id) => editMode(mode, (rows) => rows.filter((r) => r.id !== id))}
+                    onRemoveSite={() => removeSite(site.name)}
+                    onToggleSite={(on) => editSite(site.name, (s) => ({ ...s, enabled: on }))}
+                    onToggleInherited={(mode, keys, on) =>
+                      editSite(site.name, (s) => {
+                        const disabledGlobal = new Set(s.disabledGlobal);
+                        if (on) disabledGlobal.delete(inheritedKey(mode, keys));
+                        else disabledGlobal.add(inheritedKey(mode, keys));
+                        return { ...s, disabledGlobal };
+                      })
+                    }
+                  />
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col px-5 py-4">
+              <textarea
+                value={jsonDraft}
+                spellCheck={false}
+                autoFocus
+                onChange={(e) => {
+                  setJsonDraft(e.target.value);
+                  setDirty(true);
+                  setError(null);
+                }}
+                className="block min-h-0 w-full flex-1 resize-none rounded-lg border border-zinc-700 bg-zinc-950 p-3 font-mono text-[12.5px] leading-relaxed text-zinc-100 outline-none focus:border-blue-500"
+              />
+            </div>
+          )}
 
-        <footer className="flex items-center justify-between gap-3 border-t border-zinc-800 px-5 py-3">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={switchView}
-              className="cursor-pointer rounded-md border-0 bg-transparent px-0 text-[12px] text-zinc-400 underline-offset-2 hover:text-zinc-100 hover:underline"
-            >
-              {view === "list" ? "Edit as JSON" : "Back to list"}
-            </button>
-            <span className={`text-[12px] ${confirmDiscard ? "text-amber-300" : "text-zinc-500"}`}>
-              {confirmDiscard ? (
-                "Unsaved changes — press Esc again to discard"
-              ) : (
-                <>
-                  <kbd className="font-mono">Esc</kbd> to close · <kbd className="font-mono">⌘/Ctrl+Enter</kbd> to save
-                </>
-              )}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="cursor-pointer rounded-md border border-zinc-700 bg-transparent px-3 py-1.5 text-[13px] text-zinc-200 hover:bg-zinc-800"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => void save()}
-              disabled={saving}
-              className="cursor-pointer rounded-md border-0 bg-blue-600 px-3 py-1.5 text-[13px] font-medium text-white hover:bg-blue-500 disabled:cursor-default disabled:opacity-60"
-            >
-              {saving ? "Saving…" : "Save"}
-            </button>
-          </div>
-        </footer>
+          {error && (
+            <p className="m-0 border-t border-red-500/30 bg-red-500/10 px-5 py-2 text-[12.5px] text-red-300">{error}</p>
+          )}
+
+          <footer className="flex items-center justify-between gap-3 border-t border-zinc-800 px-5 py-3">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={switchView}
+                className="cursor-pointer rounded-md border-0 bg-transparent px-0 text-[12px] text-zinc-400 underline-offset-2 hover:text-zinc-100 hover:underline"
+              >
+                {view === "list" ? "Edit as JSON" : "Back to list"}
+              </button>
+              <span className={`text-[12px] ${confirmDiscard ? "text-amber-300" : "text-zinc-500"}`}>
+                {confirmDiscard ? (
+                  "Unsaved changes — press Esc again to discard"
+                ) : (
+                  <>
+                    <kbd className="font-mono">Esc</kbd> to close · <kbd className="font-mono">⌘/Ctrl+Enter</kbd> to save
+                  </>
+                )}
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="cursor-pointer rounded-md border border-zinc-700 bg-transparent px-3 py-1.5 text-[13px] text-zinc-200 hover:bg-zinc-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void save()}
+                disabled={saving}
+                className="cursor-pointer rounded-md border-0 bg-blue-600 px-3 py-1.5 text-[13px] font-medium text-white hover:bg-blue-500 disabled:cursor-default disabled:opacity-60"
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </footer>
+          </>
+        )}
       </div>
     </div>
   );

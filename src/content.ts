@@ -1,4 +1,6 @@
 import { ExtensionCore } from "./core.js";
+import { ShortsLimiter } from "./ShortsLimiter.ts";
+import { getShortsSite } from "./shortsSites.ts";
 import type { ShortcutSettings, UserConfig } from "./types.js";
 
 const USER_CONFIG: UserConfig = {
@@ -70,6 +72,10 @@ async function main(): Promise<void> {
   };
   console.log("Applying config:", configJSON);
   new ExtensionCore(configJSON || USER_CONFIG, window.location.hostname, enabled, settings);
+
+  // Independent of shortcuts, so switching shortcuts off doesn't lift the limit
+  const shortsSite = getShortsSite(window.location.hostname);
+  if (shortsSite) new ShortsLimiter(shortsSite);
 }
 
 main();

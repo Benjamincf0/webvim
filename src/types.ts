@@ -50,6 +50,23 @@ export interface ShortcutSettings {
   disabledSites: string[];
 }
 
+export type LimitedSite = "youtube" | "instagram" | "tiktok";
+
+export interface LimitSettings {
+  allowanceMinutes: number;
+  refillHours: number;
+  maxMinutes: number;
+  sites: Record<LimitedSite, boolean>;
+}
+
+// One allowance shared by every limited site
+export interface AllowanceState {
+  balance: number; // seconds left
+  lastRefill: number; // ms timestamp
+  settings: LimitSettings;
+  pending: LimitSettings | null; // applied at the next refill
+}
+
 export interface TrieNode {
   children: Record<string, TrieNode>;
   command?: CommandId;
