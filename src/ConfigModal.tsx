@@ -1,18 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactElement } from "react";
-import { log, normalizeKey } from "./utils.ts";
+import { log, matchSite, normalizeKey } from "./utils.ts";
 import { commandGroups, commandInfo, modeLabels, modes } from "./commands.ts";
 import {
   emptySite,
   fromDraft,
-  hasOpenShortcut,
+  inheritedKey,
   newRowId,
   normalizeHostname,
+  normalizeKeys,
+  sitesWithoutOpenShortcut,
   toDraft,
   validateDraft,
 } from "./configDraft.ts";
 import type { ShortcutDraft, SiteDraft } from "./configDraft.ts";
-import type { CommandId, Mode, UserConfig } from "./types.ts";
+import type { CommandId, Mode, ShortcutSettings, UserConfig } from "./types.ts";
 
 /** ===========================================================================
  * SMALL CONTROLS
@@ -200,8 +202,42 @@ function ShortcutRow({ row, error, autoFocus, onChange, onRemove }: ShortcutRowP
   );
 }
 
+type InheritedRowProps = {
+  row: ShortcutDraft;
+  status: "on" | "off" | "off-everywhere" | "replaced";
+  onToggle: (on: boolean) => void;
+};
+
+// An All-sites shortcut seen from one site: it can be switched off here without touching other sites
+function InheritedRow({ row, status, onToggle }: InheritedRowProps): ReactElement {
+  const note =
+    status === "off-everywhere" ? "Off on all sites" : status === "replaced" ? "Replaced by this site's shortcut" : null;
+  const active = status === "on";
+  return (
+    <li className="border-b border-zinc-800/70 py-2 last:border-b-0">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1.2fr)_auto] items-center gap-3">
+        {note ? (
+          <span className="w-[28px]" />
+        ) : (
+          <Toggle small checked={active} onChange={onToggle} label="Enable on this site" />
+        )}
+        <kbd
+          className={`min-w-0 truncate px-2 py-1 font-mono text-[12.5px] ${active ? "text-zinc-200" : "text-zinc-500 line-through"}`}
+        >
+          {normalizeKeys(row.keys)}
+        </kbd>
+        <span className={`min-w-0 truncate px-2 text-[13px] ${active ? "text-zinc-300" : "text-zinc-500"}`}>
+          {commandInfo[row.command]?.label ?? row.command}
+        </span>
+        <span className="text-right text-[11px] text-zinc-500">{note}</span>
+      </div>
+    </li>
+  );
+}
+
 type SitePanelProps = {
   site: SiteDraft;
+  global: SiteDraft;
   isCurrent: boolean;
   errors: Map<number, string>;
   focusRowId: number | null;
@@ -209,11 +245,21 @@ type SitePanelProps = {
   onAddRow: (mode: Mode) => void;
   onRemoveRow: (mode: Mode, id: number) => void;
   onRemoveSite: () => void;
+  onToggleSite: (on: boolean) => void;
+  onToggleInherited: (mode: Mode, keys: string, on: boolean) => void;
 };
 
 function SitePanel(props: SitePanelProps): ReactElement {
-  const { site, isCurrent, errors, focusRowId, onChangeRow, onAddRow, onRemoveRow, onRemoveSite } = props;
-  const isGlobal = site.name === "global";
+  const { site, global, isCurrent, errors, focusRowId, onChangeRow, onAddRow, onRemoveRow } = props;
+  const isGlobal = site === global;
+
+  function inheritedStatus(mode: Mode, row: ShortcutDraft): InheritedRowProps["status"] {
+    const keys = normalizeKeys(row.keys);
+    if (site.modes[mode].some((own) => own.enabled && normalizeKeys(own.keys) === keys)) return "replaced";
+    if (!row.enabled) return "off-everywhere";
+    return site.disabledGlobal.has(inheritedKey(mode, keys)) ? "off" : "on";
+  }
+
   return (
     <div className="flex flex-col gap-5 px-5 py-4">
       <div className="flex items-start justify-between gap-4">
@@ -228,57 +274,88 @@ function SitePanel(props: SitePanelProps): ReactElement {
           </h2>
           <p className="m-0 mt-1 text-[12px] text-zinc-400">
             {isGlobal
-              ? "Shortcuts that work everywhere. Sites can override them."
-              : `Added on top of All sites. A key set here replaces the global one on ${site.name}.`}
+              ? "Shortcuts that work everywhere. Each site can switch them off or replace them."
+              : `Shortcuts from All sites apply here too. Switch them off here, or add a key to replace one on ${site.name}.`}
           </p>
         </div>
         {!isGlobal && (
-          <button
-            type="button"
-            onClick={onRemoveSite}
-            className="shrink-0 cursor-pointer rounded-md border border-zinc-700 bg-transparent px-2.5 py-1 text-[12px] text-zinc-300 hover:border-red-500/60 hover:text-red-400"
-          >
-            Remove site
-          </button>
+          <div className="flex shrink-0 items-center gap-3">
+            <label className="flex cursor-pointer items-center gap-2 text-[12px] text-zinc-300">
+              On for this site
+              <Toggle checked={site.enabled} onChange={props.onToggleSite} label={`Enable shortcuts on ${site.name}`} />
+            </label>
+            <button
+              type="button"
+              onClick={props.onRemoveSite}
+              className="cursor-pointer rounded-md border border-zinc-700 bg-transparent px-2.5 py-1 text-[12px] text-zinc-300 hover:border-red-500/60 hover:text-red-400"
+            >
+              Remove site
+            </button>
+          </div>
         )}
       </div>
 
-      {modes.map((mode) => {
-        const rows = site.modes[mode];
-        return (
-          <section key={mode}>
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-1.5">
-              <h3 className="m-0 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                {modeLabels[mode]} mode
-                <span className="ml-2 font-normal text-zinc-600">{rows.length}</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => onAddRow(mode)}
-                className="cursor-pointer rounded-md border-0 bg-transparent px-2 py-0.5 text-[12px] text-blue-400 hover:bg-zinc-800"
-              >
-                + Add
-              </button>
-            </div>
-            {rows.length === 0 ? (
-              <p className="m-0 py-2 text-[12px] text-zinc-600">No shortcuts</p>
-            ) : (
-              <ul className="m-0 list-none p-0">
-                {rows.map((row) => (
-                  <ShortcutRow
-                    key={row.id}
-                    row={row}
-                    error={errors.get(row.id)}
-                    autoFocus={row.id === focusRowId}
-                    onChange={(patch) => onChangeRow(mode, row.id, patch)}
-                    onRemove={() => onRemoveRow(mode, row.id)}
-                  />
-                ))}
-              </ul>
-            )}
-          </section>
-        );
-      })}
+      {!site.enabled && (
+        <p className="m-0 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-200">
+          All shortcuts are off on {site.name}. Only the shortcut that opens this menu still works there.
+        </p>
+      )}
+
+      <div className={`flex flex-col gap-5 ${site.enabled ? "" : "opacity-50"}`}>
+        {modes.map((mode) => {
+          const rows = site.modes[mode];
+          const inherited = isGlobal ? [] : global.modes[mode].filter((row) => normalizeKeys(row.keys));
+          return (
+            <section key={mode}>
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-1.5">
+                <h3 className="m-0 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                  {modeLabels[mode]} mode
+                  <span className="ml-2 font-normal text-zinc-600">{rows.length + inherited.length}</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => onAddRow(mode)}
+                  className="cursor-pointer rounded-md border-0 bg-transparent px-2 py-0.5 text-[12px] text-blue-400 hover:bg-zinc-800"
+                >
+                  + Add
+                </button>
+              </div>
+              {rows.length === 0 && inherited.length === 0 && (
+                <p className="m-0 py-2 text-[12px] text-zinc-600">No shortcuts</p>
+              )}
+              {rows.length > 0 && (
+                <ul className="m-0 list-none p-0">
+                  {rows.map((row) => (
+                    <ShortcutRow
+                      key={row.id}
+                      row={row}
+                      error={errors.get(row.id)}
+                      autoFocus={row.id === focusRowId}
+                      onChange={(patch) => onChangeRow(mode, row.id, patch)}
+                      onRemove={() => onRemoveRow(mode, row.id)}
+                    />
+                  ))}
+                </ul>
+              )}
+              {inherited.length > 0 && (
+                <>
+                  <p className="m-0 mt-2 text-[11px] text-zinc-500">From All sites</p>
+                  <ul className="m-0 list-none p-0">
+                    {inherited.map((row) => (
+                      <InheritedRow
+                        key={row.id}
+                        row={row}
+                        status={inheritedStatus(mode, row)}
+                        onToggle={(on) => props.onToggleInherited(mode, row.keys, on)}
+                      />
+                    ))}
+                  </ul>
+                </>
+              )}
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -289,21 +366,21 @@ function SitePanel(props: SitePanelProps): ReactElement {
 
 type ConfigModalProps = {
   config: UserConfig;
-  disabledShortcuts: string[];
+  settings: ShortcutSettings;
   hostname: string;
   enabled: boolean;
   onToggleEnabled: (enabled: boolean) => Promise<void>;
   onClose: () => void;
-  onSave: (config: UserConfig, disabledShortcuts: string[]) => Promise<void>;
+  onSave: (config: UserConfig, settings: ShortcutSettings) => Promise<void>;
 };
 
 // Mounted fresh on every open, so the draft starts as the live config on the very first render
 export function ConfigModal(props: ConfigModalProps): ReactElement {
-  const { config, disabledShortcuts, hostname, onToggleEnabled, onClose, onSave } = props;
+  const { config, settings, hostname, onToggleEnabled, onClose, onSave } = props;
   const [enabled, setEnabled] = useState<boolean>(props.enabled);
-  const [sites, setSites] = useState<SiteDraft[]>(() => toDraft(config, new Set(disabledShortcuts)));
+  const [sites, setSites] = useState<SiteDraft[]>(() => toDraft(config, settings));
   const [selected, setSelected] = useState<string>(
-    () => Object.keys(config).find((s) => s !== "global" && hostname.includes(s)) ?? "global",
+    () => matchSite(Object.keys(config), hostname) ?? "global",
   );
   const [view, setView] = useState<"list" | "json">("list");
   const [jsonDraft, setJsonDraft] = useState<string>("");
@@ -316,8 +393,12 @@ export function ConfigModal(props: ConfigModalProps): ReactElement {
   const dialogRef = useRef<HTMLDivElement>(null);
 
   const rowErrors = useMemo(() => validateDraft(sites), [sites]);
-  const currentSite = sites.find((s) => s.name !== "global" && hostname.includes(s.name))?.name;
+  const currentSite = matchSite(
+    sites.map((s) => s.name),
+    hostname,
+  );
   const site = sites.find((s) => s.name === selected) ?? sites[0];
+  const globalSite = sites.find((s) => s.name === "global");
   const defaultNewSite = normalizeHostname(hostname);
 
   // Focus after the opening keystroke has finished, or its character lands in the menu
@@ -364,7 +445,7 @@ export function ConfigModal(props: ConfigModalProps): ReactElement {
   function parseJson(): SiteDraft[] | null {
     try {
       // Toggles aren't part of the JSON, so carry them over from the list
-      return toDraft(JSON.parse(jsonDraft), new Set(fromDraft(sites).disabled));
+      return toDraft(JSON.parse(jsonDraft), fromDraft(sites).settings);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Invalid JSON");
       return null;
@@ -401,14 +482,16 @@ export function ConfigModal(props: ConfigModalProps): ReactElement {
       setError("Fix the highlighted shortcuts before saving.");
       return;
     }
-    if (!hasOpenShortcut(draft)) {
-      setError("Keep at least one enabled “Open this menu” shortcut in All sites → Nav mode, or you can't get back here.");
+    const unreachable = sitesWithoutOpenShortcut(draft);
+    if (unreachable.length > 0) {
+      const where = unreachable.map((name) => (name === "global" ? "All sites" : name)).join(", ");
+      setError(`Keep an enabled “Open this menu” shortcut in Nav mode, or you can't get back here (${where}).`);
       return;
     }
     setSaving(true);
     try {
-      const { config: nextConfig, disabled } = fromDraft(draft);
-      await onSave(nextConfig, disabled);
+      const { config: nextConfig, settings: nextSettings } = fromDraft(draft);
+      await onSave(nextConfig, nextSettings);
       onClose();
     } catch (e) {
       setError("Couldn't save config");
@@ -502,6 +585,9 @@ export function ConfigModal(props: ConfigModalProps): ReactElement {
                         {s.name === currentSite && (
                           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" title="This site" />
                         )}
+                        {!s.enabled && (
+                          <span className="shrink-0 rounded bg-zinc-800 px-1 text-[10px] uppercase text-zinc-400">off</span>
+                        )}
                         {hasError && <span className="shrink-0 text-[12px] text-red-400">!</span>}
                         <span className="shrink-0 text-[11px] text-zinc-500">{count}</span>
                       </button>
@@ -535,9 +621,10 @@ export function ConfigModal(props: ConfigModalProps): ReactElement {
             </nav>
 
             <div className="min-h-0 flex-1 overflow-y-auto">
-              {site && (
+              {site && globalSite && (
                 <SitePanel
                   site={site}
+                  global={globalSite}
                   isCurrent={site.name === currentSite}
                   errors={rowErrors}
                   focusRowId={focusRowId}
@@ -547,6 +634,15 @@ export function ConfigModal(props: ConfigModalProps): ReactElement {
                   onAddRow={addRow}
                   onRemoveRow={(mode, id) => editMode(mode, (rows) => rows.filter((r) => r.id !== id))}
                   onRemoveSite={() => removeSite(site.name)}
+                  onToggleSite={(on) => editSite(site.name, (s) => ({ ...s, enabled: on }))}
+                  onToggleInherited={(mode, keys, on) =>
+                    editSite(site.name, (s) => {
+                      const disabledGlobal = new Set(s.disabledGlobal);
+                      if (on) disabledGlobal.delete(inheritedKey(mode, keys));
+                      else disabledGlobal.add(inheritedKey(mode, keys));
+                      return { ...s, disabledGlobal };
+                    })
+                  }
                 />
               )}
             </div>

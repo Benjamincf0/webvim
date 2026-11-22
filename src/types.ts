@@ -44,6 +44,12 @@ export interface UserConfig {
   [hostname: string]: SiteConfig;
 }
 
+// What the menu switched off, stored next to the config in chrome.storage
+export interface ShortcutSettings {
+  disabledShortcuts: string[];
+  disabledSites: string[];
+}
+
 export interface TrieNode {
   children: Record<string, TrieNode>;
   command?: CommandId;

@@ -3,7 +3,7 @@ import type { Root } from "react-dom/client";
 import { log, waitFor } from "./utils.js";
 import { ConfigModal } from "./ConfigModal.tsx";
 import { ExtensionCore } from "./core.ts";
-import type { UserConfig } from "./types.ts";
+import type { ShortcutSettings, UserConfig } from "./types.ts";
 import styles from "./index.css?inline";
 
 /** ===========================================================================
@@ -46,12 +46,15 @@ export class UIManager {
       this.isOpen ? (
         <ConfigModal
           config={this.core.config}
-          disabledShortcuts={[...this.core.disabledShortcuts]}
+          settings={{
+            disabledShortcuts: [...this.core.disabledShortcuts],
+            disabledSites: [...this.core.disabledSites],
+          }}
           hostname={this.core.hostname}
           enabled={this.core.enabled}
           onToggleEnabled={(enabled) => this.core.setEnabled(enabled)}
           onClose={() => this.hideUI()}
-          onSave={(config, disabled) => this.saveConfig(config, disabled)}
+          onSave={(config, settings) => this.saveConfig(config, settings)}
         />
       ) : null,
     );
@@ -67,9 +70,9 @@ export class UIManager {
     this.render();
   }
 
-  async saveConfig(config: UserConfig, disabledShortcuts: string[]): Promise<void> {
-    await window.chrome.storage.local.set({ configJSON: config, disabledShortcuts });
-    this.core.updateConfig(config, disabledShortcuts);
+  async saveConfig(config: UserConfig, settings: ShortcutSettings): Promise<void> {
+    await window.chrome.storage.local.set({ configJSON: config, ...settings });
+    this.core.applySettings(config, settings);
     log.info("Config saved");
   }
 }

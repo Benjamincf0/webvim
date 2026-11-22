@@ -51,9 +51,19 @@ export function normalizeKey(event: KeyboardEvent): string {
   return parts.join("+");
 }
 
+// The configured site whose shortcuts apply on this hostname
+export function matchSite(sites: string[], hostname: string): string | undefined {
+  return sites.find((site) => site !== "global" && hostname.includes(site));
+}
+
 // Identifies one shortcut for the list of shortcuts the user switched off in the menu
 export function shortcutId(site: string, mode: Mode, keys: string): string {
   return `${site}|${mode}|${keys}`;
+}
+
+// An All-sites shortcut switched off on one site only
+export function inheritedShortcutId(site: string, mode: Mode, keys: string): string {
+  return `global@${site}|${mode}|${keys}`;
 }
 
 export function generateEffectiveKeymap(
@@ -62,16 +72,18 @@ export function generateEffectiveKeymap(
   currentMode: Mode,
   disabled: Set<string> = new Set(),
 ): KeymapConfig {
+  const siteKey = matchSite(Object.keys(config), hostname);
+  const isOn = (site: string, keys: string): boolean => {
+    if (disabled.has(shortcutId(site, currentMode, keys))) return false;
+    return !(site === "global" && siteKey && disabled.has(inheritedShortcutId(siteKey, currentMode, keys)));
+  };
   // Disabled site shortcuts are dropped before merging, so the global binding for that key applies again
   const enabledOnly = (site: string, keymap: KeymapConfig | undefined): KeymapConfig =>
-    Object.fromEntries(
-      Object.entries(keymap ?? {}).filter(([keys]) => !disabled.has(shortcutId(site, currentMode, keys))),
-    );
+    Object.fromEntries(Object.entries(keymap ?? {}).filter(([keys]) => isOn(site, keys)));
 
   let effectiveMap: KeymapConfig = enabledOnly("global", config.global?.[currentMode]);
-  const siteKey = Object.keys(config).find((site) => hostname.includes(site));
 
-  if (siteKey && siteKey !== "global" && config[siteKey]) {
+  if (siteKey && config[siteKey]) {
     const siteConfig = config[siteKey] as Record<Mode, KeymapConfig>;
     effectiveMap = { ...effectiveMap, ...enabledOnly(siteKey, siteConfig[currentMode]) };
   }

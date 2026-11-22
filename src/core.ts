@@ -3,13 +3,14 @@ import {
   generateEffectiveKeymap,
   isUserTyping,
   log,
+  matchSite,
 } from "./utils.ts";
 
 import { StrategyFactory } from "./strategy.js";
 import { UIManager } from "./uimanager.tsx";
 import { KeyTrie } from "./trie.js";
 import { InputManager } from "./InputManager.js";
-import type { Mode, UserConfig, CommandId } from "./types.ts";
+import type { Mode, UserConfig, CommandId, ShortcutSettings } from "./types.ts";
 
 export class ExtensionCore {
   config: UserConfig;
@@ -23,13 +24,15 @@ export class ExtensionCore {
   mainMenuItemsIndex: number;
   enabled: boolean;
   disabledShortcuts: Set<string>;
+  disabledSites: Set<string>;
   private strategy!: ReturnType<typeof StrategyFactory.get>;
 
-  constructor(config: UserConfig, hostname: string, enabled: boolean = true, disabledShortcuts: string[] = []) {
+  constructor(config: UserConfig, hostname: string, enabled: boolean, settings: ShortcutSettings) {
     this.config = config;
     this.hostname = hostname;
     this.enabled = enabled;
-    this.disabledShortcuts = new Set(disabledShortcuts);
+    this.disabledShortcuts = new Set(settings.disabledShortcuts);
+    this.disabledSites = new Set(settings.disabledSites);
     this.mainItems = [];
     this.mainItemsIndex = 0;
     this.mainMenuItems = [];
@@ -49,7 +52,7 @@ export class ExtensionCore {
     }
 
     document.addEventListener("focusin", () => {
-      if (!this.enabled) return;
+      if (!this.isActive()) return;
       if (isUserTyping(document.activeElement)) {
         this.setMode("INSERT_MODE");
         this.strategy.setInsertMode();
@@ -57,9 +60,16 @@ export class ExtensionCore {
     });
   }
 
+  // Off when shortcuts are switched off everywhere, or just on this site
+  isActive(): boolean {
+    if (!this.enabled) return false;
+    const site = matchSite(Object.keys(this.config), this.hostname);
+    return !(site && this.disabledSites.has(site));
+  }
+
   // Strategies touch the page on creation (e.g. highlighting items), so skip them while disabled
   initStrategy(): void {
-    if (this.strategy || !this.enabled) return;
+    if (this.strategy || !this.isActive()) return;
     this.strategy = StrategyFactory.get(this, this.hostname);
   }
 
@@ -67,8 +77,16 @@ export class ExtensionCore {
     this.enabled = enabled;
     this.currentMode = "NAV_MODE";
     this.updateConfig(this.config);
-    if (enabled && document.readyState !== "loading") this.initStrategy();
+    if (document.readyState !== "loading") this.initStrategy();
     await window.chrome.storage.local.set({ enabled });
+  }
+
+  applySettings(config: UserConfig, settings: ShortcutSettings): void {
+    this.disabledShortcuts = new Set(settings.disabledShortcuts);
+    this.disabledSites = new Set(settings.disabledSites);
+    this.currentMode = "NAV_MODE";
+    this.updateConfig(config);
+    if (document.readyState !== "loading") this.initStrategy();
   }
 
   setMode(mode: Mode): void {
@@ -76,13 +94,12 @@ export class ExtensionCore {
     this.updateConfig(this.config);
   }
 
-  updateConfig(newConfig: UserConfig, disabledShortcuts?: string[]): void {
+  updateConfig(newConfig: UserConfig): void {
     this.config = newConfig;
-    if (disabledShortcuts) this.disabledShortcuts = new Set(disabledShortcuts);
     let keymap = generateEffectiveKeymap(newConfig, this.hostname, this.currentMode, this.disabledShortcuts);
 
     // While disabled, only the shortcut that opens the modal stays active (from any mode)
-    if (!this.enabled) {
+    if (!this.isActive()) {
       const navKeymap = generateEffectiveKeymap(newConfig, this.hostname, "NAV_MODE", this.disabledShortcuts);
       keymap = Object.fromEntries(
         Object.entries(navKeymap).filter(([, cmd]) => cmd === "open_extension_config"),

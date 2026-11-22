@@ -1,5 +1,5 @@
 import { ExtensionCore } from "./core.js";
-import type { UserConfig } from "./types.js";
+import type { ShortcutSettings, UserConfig } from "./types.js";
 
 const USER_CONFIG: UserConfig = {
   global: {
@@ -60,12 +60,16 @@ const USER_CONFIG: UserConfig = {
 };
 
 async function main(): Promise<void> {
-  const result = await window.chrome.storage.local.get(["configJSON", "enabled", "disabledShortcuts"]);
+  const result = await window.chrome.storage.local.get(["configJSON", "enabled", "disabledShortcuts", "disabledSites"]);
   const configJSON = result.configJSON as UserConfig | undefined;
   const enabled = result.enabled !== false; // default to enabled
-  const disabledShortcuts = Array.isArray(result.disabledShortcuts) ? (result.disabledShortcuts as string[]) : [];
+  const stringList = (value: unknown): string[] => (Array.isArray(value) ? (value as string[]) : []);
+  const settings: ShortcutSettings = {
+    disabledShortcuts: stringList(result.disabledShortcuts),
+    disabledSites: stringList(result.disabledSites),
+  };
   console.log("Applying config:", configJSON);
-  new ExtensionCore(configJSON || USER_CONFIG, window.location.hostname, enabled, disabledShortcuts);
+  new ExtensionCore(configJSON || USER_CONFIG, window.location.hostname, enabled, settings);
 }
 
 main();
