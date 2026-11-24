@@ -12,6 +12,10 @@ import type { AllowanceState } from "./types.ts";
 
 const scrollKeys = ["ArrowUp", "ArrowDown", "PageUp", "PageDown"];
 
+// Secret slack: a video that's started can run up to this long past 0:00, so the timer can actually
+// reach zero without cutting you off mid-video. Nothing new can play or be scrolled to meanwhile.
+const graceSeconds = 30;
+
 export class ShortsLimiter {
   site: ShortsSite;
   state: AllowanceState | null;
@@ -20,6 +24,11 @@ export class ShortsLimiter {
   coverText: string;
   feedStyle: HTMLStyleElement;
   friendPath: string | null;
+  // The video allowed to finish after the timer hit 0, until it ends, loops or the grace runs out
+  graceVideo: HTMLVideoElement | null;
+  graceSrc: string;
+  graceEnd: number;
+  graceLastTime: number;
 
   constructor(site: ShortsSite) {
     this.site = site;
@@ -27,6 +36,10 @@ export class ShortsLimiter {
     this.overlay = new LimiterOverlay();
     this.coverVideo = null;
     this.coverText = "";
+    this.graceVideo = null;
+    this.graceSrc = "";
+    this.graceEnd = 0;
+    this.graceLastTime = 0;
     this.feedStyle = document.createElement("style");
     if (site.hiddenFeedSelector) this.feedStyle.textContent = `${site.hiddenFeedSelector} { display: none !important; }`;
     // A reel opened straight from a link (e.g. sent in another app) rather than from inside the site
@@ -36,6 +49,7 @@ export class ShortsLimiter {
 
     // "play" doesn't bubble, so catch it on the way down
     document.addEventListener("play", (e) => this.onPlay(e), true);
+    document.addEventListener("timeupdate", (e) => this.onTimeUpdate(e), true);
     window.addEventListener("click", (e) => this.onClick(e), true);
     window.addEventListener("wheel", (e) => this.lockScroll(e), { capture: true, passive: false });
     window.addEventListener("touchmove", (e) => this.lockScroll(e), { capture: true, passive: false });
@@ -68,13 +82,16 @@ export class ShortsLimiter {
     const video = this.isOn() && this.onLimitedPage() ? this.mainVideo() : null;
     const watching =
       !!video && !video.paused && !video.ended && document.visibilityState === "visible" && !this.holdReason(video);
+    const before = this.state?.balance ?? 0;
     this.state = watching ? await spendAllowance(1) : await loadAllowance();
+    if (watching && video && before > 0 && this.state.balance <= 0) this.startGrace(video);
+    if (this.graceVideo && Date.now() > this.graceEnd) this.endGrace();
 
     if (!this.isOn() || !this.onLimitedPage()) {
       this.overlay.showTimer(null);
       this.coverVideo = null;
     } else {
-      if (this.isOutOfTime()) document.querySelectorAll("video").forEach((v) => v.pause());
+      if (this.isOutOfTime()) document.querySelectorAll("video").forEach((v) => v !== this.graceVideo && v.pause());
       const reason = video ? this.holdReason(video) : null;
       if (video && reason) video.pause();
       this.coverVideo = reason ? video : null;
@@ -83,6 +100,27 @@ export class ShortsLimiter {
     }
     this.updateLinks();
     this.updateFeedStyle();
+  }
+
+  startGrace(video: HTMLVideoElement): void {
+    this.graceVideo = video;
+    this.graceSrc = video.currentSrc;
+    this.graceEnd = Date.now() + graceSeconds * 1000;
+    this.graceLastTime = video.currentTime;
+  }
+
+  endGrace(): void {
+    this.graceVideo?.pause();
+    this.graceVideo = null;
+  }
+
+  // Ends the grace as soon as its video finishes, loops back to the start or is swapped for another
+  onTimeUpdate(e: Event): void {
+    const video = this.graceVideo;
+    if (!video || e.target !== video) return;
+    const looped = video.currentTime < this.graceLastTime;
+    this.graceLastTime = video.currentTime;
+    if (looped || video.ended || video.currentSrc !== this.graceSrc || Date.now() > this.graceEnd) this.endGrace();
   }
 
   updateFeedStyle(): void {
@@ -94,10 +132,10 @@ export class ShortsLimiter {
   // Why this video can't play right now, or null if it can
   holdReason(video: HTMLVideoElement): string | null {
     if (!this.state) return null;
-    if (this.isOutOfTime()) return this.statusText();
+    if (this.isOutOfTime()) return video === this.graceVideo ? null : this.statusText();
     const remaining = video.duration - video.currentTime;
-    // A little slack so a video that fit when it started isn't cut off by rounding
-    if (Number.isFinite(remaining) && remaining > this.state.balance + 2) {
+    // Anything that fits once the grace is counted may start
+    if (Number.isFinite(remaining) && remaining > this.state.balance + graceSeconds) {
       return `This one is ${formatClock(video.duration)}, you have ${formatClock(this.state.balance)} left. Scroll past it.`;
     }
     return null;
@@ -149,8 +187,9 @@ export class ShortsLimiter {
     }
   }
 
+  // No scrolling on friend reels, or on to a new video while the last one finishes after 0:00
   lockScroll(e: Event): void {
-    if (!this.isOn() || !this.isFriendReel()) return;
+    if (!this.isOn() || !(this.isFriendReel() || this.graceVideo)) return;
     e.preventDefault();
     e.stopPropagation();
   }
